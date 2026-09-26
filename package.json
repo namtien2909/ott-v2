@@ -1,0 +1,36 @@
+{
+  "name": "ottv2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.6.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=12.6.0"
+  },
+  "scripts": {
+    "dev": "corepack pnpm run build:packages && corepack pnpm --parallel --filter @ottv2/web --filter @ottv2/server dev",
+    "build:packages": "corepack pnpm --filter ./packages/** build",
+    "build": "corepack pnpm -r --if-present build",
+    "typecheck": "corepack pnpm -r --if-present typecheck",
+    "lint": "corepack pnpm -r --if-present lint",
+    "test": "vitest run tests/unit tests/contract tests/integration",
+    "test:unit": "vitest run tests/unit",
+    "test:contract": "vitest run --passWithNoTests tests/contract",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "playwright test",
+    "test:load": "k6 run tests/load/smoke.js",
+    "smoke:production": "node scripts/w12-production-smoke.mjs",
+    "db:generate": "corepack pnpm --filter @ottv2/server db:generate",
+    "db:migrate": "corepack pnpm --filter @ottv2/server db:migrate",
+    "db:deploy": "corepack pnpm --filter @ottv2/server db:deploy",
+    "db:status": "corepack pnpm --filter @ottv2/server db:status"
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.19.3",
+    "playwright": "^1.55.0",
+    "prisma": "^6.19.3",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.4"
+  }
+}

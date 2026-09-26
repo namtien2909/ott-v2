@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String        @id @default(uuid())
+  fullName          String
+  displayName       String
+  username          String        @unique
+  usernameNormalized String       @unique
+  passwordHash      String
+  recoveryCodeHash  String
+  recoveryUsedAt    DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  profile           UserProfile?
+  stats             UserStats?
+  sessions          Session[]
+  sentFriendRequests FriendRequest[] @relation("FriendRequestSender")
+  receivedFriendRequests FriendRequest[] @relation("FriendRequestRecipient")
+  friendshipsA      Friendship[] @relation("FriendshipA")
+  friendshipsB      Friendship[] @relation("FriendshipB")
+  blocksGiven       Block[] @relation("Blocker")
+  blocksReceived    Block[] @relation("Blocked")
+  guestHistoryImports GuestHistoryImport[]
+
+  @@index([usernameNormalized])
+}
+
+model UserProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  theme     String   @default("system")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserStats {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  elo         Int      @default(1000)
+  rankedWins  Int      @default(0)
+  rankedLosses Int     @default(0)
+  quickWins   Int      @default(0)
+  quickLosses Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id         String   @id @default(uuid())
+  userId     String
+  tokenHash  String   @unique
+  remember   Boolean  @default(false)
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model RankedMatchResult {
+  matchId       String   @id
+  blueUserId    String
+  redUserId     String
+  resultReason  String
+  blueBefore    Int
+  blueAfter     Int
+  blueDelta     Int
+  redBefore     Int
+  redAfter      Int
+  redDelta      Int
+  createdAt     DateTime @default(now())
+}
+
+model Match {
+  id              String        @id
+  roomId          String
+  mode            String
+  status          String
+  resultReason    String?
+  winnerSide      String?
+  timerSeconds    Int
+  startedAt       DateTime?
+  endedAt         DateTime?
+  durationSeconds Int?
+  createdAt       DateTime       @default(now())
+  players         MatchPlayer[]
+
+  @@index([endedAt])
+  @@index([roomId])
+}
+
+model MatchPlayer {
+  id           String   @id @default(uuid())
+  matchId      String
+  userId       String
+  username     String
+  displayName  String
+  side         String
+  isWinner     Boolean?
+  ratingBefore Int?
+  ratingAfter  Int?
+  ratingDelta  Int?
+  match        Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([matchId, userId])
+  @@index([userId, matchId])
+}
+
+model FriendRequest {
+  id          String   @id @default(uuid())
+  senderId    String
+  recipientId String
+  pairKey     String   @unique
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  sender      User     @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipient   User     @relation("FriendRequestRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, recipientId])
+  @@index([recipientId, status])
+  @@index([senderId, status])
+}
+
+model Friendship {
+  id        String   @id @default(uuid())
+  userAId   String
+  userBId   String
+  createdAt DateTime @default(now())
+  userA     User     @relation("FriendshipA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB     User     @relation("FriendshipB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+}
+
+model Block {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+model GuestHistoryImport {
+  id         String   @id @default(uuid())
+  userId     String
+  localId    String
+  payload    Json
+  importedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, localId])
+  @@index([userId, importedAt])
+}
