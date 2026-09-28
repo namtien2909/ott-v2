@@ -22,7 +22,7 @@ describe("B14 release matrix contracts", () => {
     expect(SYNTHESIZED_SFX_CUES).toHaveLength(16);
     expect(SYNTHESIZED_SFX_CUES).toEqual(expect.arrayContaining(["ui_hover", "ui_click", "ui_confirm", "ui_error", "select", "move", "capture", "goal_warning", "low_time_tick", "match_found", "countdown_tick", "countdown_go", "victory", "defeat", "elo_tick", "rank_up"]));
     expect(BGM_TRACKS).toEqual({ lobby: "/audio/bgm/lobby_loop.wav", match: "/audio/bgm/match_loop.wav" });
-    const attribution = readFileSync("apps/web/public/audio/ATTRIBUTION.md", "utf8");
+    const attribution = readFileSync("apps/web/public/audio/bgm/ATTRIBUTION.md", "utf8");
     expect(attribution).toContain("lobby_loop.wav");
     expect(attribution).toContain("match_loop.wav");
   });
