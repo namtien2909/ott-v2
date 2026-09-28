@@ -25,6 +25,10 @@ export function requestRematch(roomId: string, stateVersion: number) {
   return requestJson<{ match: MatchSnapshot }>(`/matches/${encodeURIComponent(roomId)}/rematch`, { method: "POST", body: { stateVersion }, headers: { "X-Client-Id": getClientId() } });
 }
 
+export function rejectRematch(roomId: string, stateVersion: number) {
+  return requestJson<{ match: MatchSnapshot }>(`/matches/${encodeURIComponent(roomId)}/rematch/reject`, { method: "POST", body: { stateVersion }, headers: { "X-Client-Id": getClientId() } });
+}
+
 export function subscribeToMatch(roomId: string, onEvent: (event: MatchEventEnvelope) => void, onError: () => void): () => void {
   const source = new EventSource(`${env.apiBaseUrl}/matches/${encodeURIComponent(roomId)}/events?clientId=${encodeURIComponent(getClientId())}`, { withCredentials: true });
   source.onmessage = (message) => { try { onEvent(JSON.parse(message.data) as MatchEventEnvelope); } catch { onError(); } };

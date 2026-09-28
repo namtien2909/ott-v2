@@ -104,7 +104,7 @@ export function createFinishedRankedSnapshot(
   });
 }
 
-export function createAbortedSnapshot(reason: "SERVER_INTERRUPTION" = "SERVER_INTERRUPTION"): MatchSnapshot {
+export function createAbortedSnapshot(reason: "DISCONNECT_TIMEOUT" | "SERVER_INTERRUPTION" = "SERVER_INTERRUPTION"): MatchSnapshot {
   return createCanonicalMatchSnapshot({
     status: "ABORTED",
     currentTurn: null,

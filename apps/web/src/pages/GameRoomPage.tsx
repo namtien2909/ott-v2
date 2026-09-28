@@ -6,12 +6,13 @@ import { routes } from "../app/routes";
 import { GameBoard } from "../components/board";
 import { Button, LoadingState, Modal, useToast } from "../components/ui";
 import { ApiError } from "../services/http/apiError";
-import { fastReady, getMatch, requestRematch, setReady, submitMove, surrender, subscribeToMatch } from "../services/rooms/matchApi";
+import { fastReady, getMatch, rejectRematch, requestRematch, setReady, submitMove, surrender, subscribeToMatch } from "../services/rooms/matchApi";
 import { leaveRoom } from "../services/rooms/roomApi";
 import { getTabId } from "../services/session/clientIdentity";
 import { applyPresentationPreferences, playSound } from "../services/presentation/preferences";
 import { createSemanticEvent, semanticEventBus, type SemanticEventType } from "../foundation/eventBus";
 import { formatCountdown } from "./queueState";
+import { ResultPanel, type RematchState } from "../components/result";
 
 type OnlineState = { kind: "loading" } | { kind: "ready"; match: MatchSnapshot; viewerSide: Side | null; connection: "connecting" | "connected" | "reconnecting" | "offline"; lastEvent?: string } | { kind: "error"; message: string };
 type MoveLogEntry = { id: string; sequence: number; side: Side; from: Coordinate; to: Coordinate; piece: "R" | "P" | "S"; captured?: "R" | "P" | "S" };
@@ -50,6 +51,11 @@ function playerLabel(match: MatchSnapshot, side: Side): string {
   return match.players.find((player) => player.side === side)?.displayName ?? (side === "BLUE" ? "Người chơi Xanh" : "Người chơi Đỏ");
 }
 
+function rematchStateFor(match: MatchSnapshot, viewerSide: Side | null): RematchState {
+  if (!match.rematchRequestedBy || !viewerSide) return "idle";
+  return match.rematchRequestedBy === viewerSide ? "requested" : "opponent_requested";
+}
+
 export default function GameRoomPage() {
   const navigate = useNavigate();
   const { roomId = "w1-demo" } = useParams();
@@ -68,6 +74,7 @@ export default function GameRoomPage() {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [moveLog, setMoveLog] = useState<MoveLogEntry[]>([]);
   const [combatFeed, setCombatFeed] = useState<CombatFeedEntry[]>([]);
+  const [rematchState, setRematchState] = useState<RematchState>("idle");
   const previousMatchRef = useRef<MatchSnapshot | null>(null);
   const [lockConflict, setLockConflict] = useState(false);
   const [, setClockPulse] = useState(0);
@@ -97,6 +104,7 @@ export default function GameRoomPage() {
       previousMatchRef.current = result.match;
       setMoveLog([]);
       setCombatFeed([]);
+      setRematchState(rematchStateFor(result.match, viewerSide));
       lastSequence = result.match.sequence;
       lastStateVersion = result.match.stateVersion;
       setOnline({ kind: "ready", match: result.match, viewerSide, connection: "connecting" });
@@ -109,6 +117,9 @@ export default function GameRoomPage() {
         if (offlineTimer !== undefined) window.clearTimeout(offlineTimer);
         window.dispatchEvent(new CustomEvent("ottv2:network-state", { detail: { state: "CONNECTED" } }));
         recordSnapshot(event.payload);
+        if (event.type === "REMATCH_REQUESTED") setRematchState(rematchStateFor(event.payload, viewerSide));
+        if (event.type === "REMATCH_REJECTED") setRematchState("idle");
+        if (event.payload.status === "WAITING_READY" && event.payload.rematchRequestedBy === null) setRematchState("idle");
         const semanticType = semanticTypeForMatchEvent(event.type);
         if (semanticType) semanticEventBus.emit(createSemanticEvent({ eventId: `${event.matchId}:${event.sequence}`, stateVersion: event.stateVersion, source: "match.realtime", type: semanticType, payload: event.payload }));
         setOnline((current) => current.kind === "ready" ? { ...current, match: event.payload, connection: "connected", lastEvent: event.type } : current);
@@ -215,6 +226,34 @@ export default function GameRoomPage() {
     catch (reason) { notify(reason instanceof ApiError ? reason.message : "Thao tác match thất bại.", "error"); }
     finally { setPending(false); }
   }, [lockConflict, notify, online, updateMatch]);
+  const handleRematch = useCallback(async () => {
+    if (online.kind !== "ready" || online.connection !== "connected" || lockConflict || (online.match.status !== "FINISHED")) {
+      notify("Đang chờ trạng thái trận đấu ổn định để chơi lại.", "warning");
+      return;
+    }
+    setRematchState(rematchState === "opponent_requested" ? "accepting" : "pending");
+    try {
+      const result = await requestRematch(roomId, online.match.stateVersion);
+      updateMatch(result.match);
+      setRematchState(result.match.status === "WAITING_READY" ? "idle" : "requested");
+      notify(result.match.status === "WAITING_READY" ? "Đã chấp nhận. Chuẩn bị ván mới." : "Đã gửi yêu cầu chơi lại.", "success");
+    } catch (reason) {
+      setRematchState("idle");
+      notify(reason instanceof ApiError ? reason.message : "Không thể gửi yêu cầu chơi lại.", "error");
+    }
+  }, [lockConflict, notify, online, rematchState, roomId, updateMatch]);
+  const handleRejectRematch = useCallback(async () => {
+    if (online.kind !== "ready" || online.connection !== "connected" || lockConflict || online.match.status !== "FINISHED") return;
+    setPending(true);
+    try {
+      const result = await rejectRematch(roomId, online.match.stateVersion);
+      updateMatch(result.match);
+      setRematchState("idle");
+      notify("Đã từ chối chơi lại.", "success");
+    } catch (reason) {
+      notify(reason instanceof ApiError ? reason.message : "Không thể từ chối chơi lại.", "error");
+    } finally { setPending(false); }
+  }, [lockConflict, notify, online, roomId, updateMatch]);
   useEffect(() => {
     if (online.kind !== "ready" || online.match.status !== "COUNTDOWN" || online.viewerSide === null) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -273,20 +312,22 @@ export default function GameRoomPage() {
   const canPlay = match.status === "PLAYING" && online.connection === "connected" && !lockConflict && online.viewerSide !== null && match.currentTurn === online.viewerSide;
   const isReady = online.viewerSide ? Boolean(match.players.find((player) => player.side === online.viewerSide)?.ready) : false;
   const countdown = match.countdownEndsAt ? formatCountdown(match.countdownEndsAt) : null;
-  const resultText = match.resultReason === "TIMEOUT" ? "Hết giờ" : match.resultReason === "SURRENDER" ? "Đầu hàng" : match.resultReason === "SERVER_INTERRUPTION" ? "Trận đấu bị gián đoạn" : match.resultReason === "GOAL_REACHED" ? "Chiếm ô đích" : match.resultReason === "EXTINCTION" ? "Đối thủ mất toàn bộ Kéo" : "Kết thúc";
+  const resultText = match.resultReason === "TIMEOUT" ? "Hết giờ" : match.resultReason === "SURRENDER" ? "Đầu hàng" : match.resultReason === "DISCONNECT_TIMEOUT" ? "Đối thủ không kết nối lại" : match.resultReason === "SERVER_INTERRUPTION" ? "Trận đấu bị gián đoạn" : match.resultReason === "GOAL_REACHED" ? "Chiếm ô đích" : match.resultReason === "EXTINCTION" ? "Đối thủ mất toàn bộ quân" : "Kết thúc";
+  const terminal = match.status === "FINISHED" || match.status === "ABORTED";
+  const resultStats = { moves: moveLog.length, captures: moveLog.filter((move) => Boolean(move.captured) && move.side === online.viewerSide).length, piecesLost: moveLog.filter((move) => Boolean(move.captured) && move.side !== online.viewerSide).length, durationSeconds: match.startedAt && match.endedAt ? Math.max(0, Math.floor((match.endedAt - match.startedAt) / 1000)) : 0 };
+  const terminalOutcomeClass = terminal && match.winner && online.viewerSide && match.winner !== online.viewerSide ? "game-result-defeat" : terminal && match.winner && online.viewerSide ? "game-result-victory" : terminal ? "game-result-neutral" : "";
 
   return <section className="game-room-page online-game-room"><div className="game-room-header"><div><p className="eyebrow">TRẬN ĐẤU TRỰC TUYẾN</p><h1>Phòng đấu {roomId}</h1><p className="game-room-subtitle">{match.mode === "RANKED" ? "Xếp hạng" : "Không xếp hạng"} · trạng thái đồng bộ trực tiếp</p></div><div className="game-header-actions"><span className={`connection-badge ${online.connection}`} role="status"><span className="status-dot" />{connectionLabel(online.connection)}</span><Button variant="secondary" onClick={() => setSettingsOpen(true)}>⚙ <span className="visually-hidden">Mở </span>Cài đặt</Button></div></div>
     {(online.connection !== "connected" || lockConflict) && <div className={`reconnect-overlay ${lockConflict ? "tab-lock" : online.connection}`} role="status" aria-live="polite"><strong>{lockConflict ? "Phòng đang mở ở tab khác" : online.connection === "offline" ? "Mất kết nối tới trận đấu" : "Đang kết nối lại trận đấu"}</strong><span>{lockConflict ? "Đóng tab kia để tiếp tục hoặc tải lại trang sau khi tab kia kết thúc." : online.connection === "offline" ? "Trạng thái máy chủ gần nhất vẫn được giữ; bàn cờ đã bị khoá." : "Đang chờ kết nối lại và đồng bộ trạng thái mới nhất."}</span>{online.connection === "offline" && <Button variant="secondary" onClick={() => window.location.reload()}>Tải lại</Button>}</div>}
     {match.status === "WAITING_READY" ? <WaitingRoom match={match} viewerSide={online.viewerSide} disabled={!online.viewerSide || pending || lockConflict || online.connection !== "connected"} copyStatus={copyStatus} onCopy={() => void copyRoomCode()} onLeave={() => void leaveWaitingRoom()} onReady={() => online.viewerSide && void runCommand(() => setReady(roomId, !isReady), isReady ? "Đã huỷ sẵn sàng." : "Đã sẵn sàng.")} leavePending={leavePending} /> : <>
     <div className="match-status-bar" aria-live="polite"><strong>{match.status === "COUNTDOWN" ? `Bắt đầu sau ${countdown ?? 0}` : match.status === "PLAYING" ? canPlay ? "LƯỢT CỦA BẠN" : "LƯỢT ĐỐI THỦ" : resultText}</strong><small>{match.status === "PLAYING" ? "Bàn cờ đang đồng bộ" : "Trạng thái trận đấu"}</small></div>
     {match.status === "COUNTDOWN" && <div className="countdown-banner" role="status" aria-live="assertive"><strong>{countdown ?? 0}</strong><span>Nhấn SPACE để bắt đầu ngay</span></div>}
-    <div className="game-room-layout"><div><div className="perspective-stage"><div className="perspective-hud far" data-perspective-side={farSide}><span className="perspective-label">ĐỐI THỦ · PHÍA XA</span><PlayerHud match={match} side={farSide} low={match.clocksMs[farSide] <= 10000} /></div><GameBoard state={state} viewSide={viewSide} interactionSide={online.viewerSide} disabled={!canPlay || pending} onMove={(from: Coordinate, to: Coordinate) => { if (online.viewerSide) void runCommand(() => submitMove(roomId, from, to, match.stateVersion)); }} /><div className="perspective-hud near" data-perspective-side={nearSide}><span className="perspective-label">BẠN · PHÍA GẦN</span><PlayerHud match={match} side={nearSide} low={match.clocksMs[nearSide] <= 10000} /></div></div><div className="match-actions"><span className="turn-copy">{match.status === "PLAYING" ? canPlay ? "Đến lượt bạn — chọn quân rồi chọn ô đích." : `Đang chờ ${match.currentTurn === "BLUE" ? playerLabel(match, "BLUE") : playerLabel(match, "RED")}.` : "Bàn cờ chỉ nhận nước đi khi trận đang diễn ra."}</span>{match.status === "PLAYING" && <Button variant="danger" onClick={() => setConfirmSurrender(true)} disabled={pending || lockConflict || online.connection !== "connected"}>Đầu hàng</Button>}</div></div><aside className="game-room-info" aria-label="Thông tin trận đấu"><div className="game-room-feed"><section className="move-log" aria-labelledby="move-log-title"><div className="rail-heading"><h3 id="move-log-title">NHẬT KÝ NƯỚC ĐI</h3><span>{moveLog.length}</span></div>{moveLog.length === 0 ? <p className="rail-empty">Chưa có nước đi được ghi nhận.</p> : <ol>{moveLog.map((move) => <li key={move.id}><span className={`feed-side ${move.side.toLowerCase()}`}>{move.side === "BLUE" ? "X" : "Đ"}</span><span>{move.from} → {move.to}</span>{move.captured && <strong>ĂN {move.captured}</strong>}</li>)}</ol>}</section><section className="combat-feed" aria-labelledby="combat-feed-title" aria-live="polite"><div className="rail-heading"><h3 id="combat-feed-title">COMBAT FEED</h3><span>{combatFeed.length}</span></div>{combatFeed.length === 0 ? <p className="rail-empty">Đang chờ diễn biến trận đấu.</p> : <ul>{combatFeed.map((entry) => <li key={entry.id} className={entry.tone}><span className="feed-pulse" aria-hidden="true" />{entry.text}</li>)}</ul>}</section></div><PerspectiveInfoCard match={match} side={farSide} /><PerspectiveInfoCard match={match} side={nearSide} />{(match.status === "FINISHED" || match.status === "ABORTED") && <div className="result-card"><span>KẾT QUẢ TRẬN ĐẤU</span><strong>{match.status === "ABORTED" ? "Trận đấu bị gián đoạn" : match.winner === online.viewerSide ? "Chiến thắng" : match.winner ? "Thất bại" : "Không có người thắng"}</strong><small>{resultText}</small>{match.mode === "RANKED" && match.rating && <small className="rating-result">Elo · XANH {formatDelta(match.rating.blueDelta)} · ĐỎ {formatDelta(match.rating.redDelta)}</small>}<div className="result-actions">{match.status === "FINISHED" && <Button onClick={() => online.viewerSide && void runCommand(() => requestRematch(roomId, match.stateVersion), "Đã gửi yêu cầu chơi lại.")} disabled={pending || lockConflict || online.connection !== "connected"}>Chơi lại</Button>}<Link className="button secondary" to={routes.home}>Về trang chủ</Link></div></div>}</aside></div></>}
+    <div className={`game-room-layout ${terminal ? "game-room-terminal" : ""} ${terminalOutcomeClass}`}><div><div className="perspective-stage"><div className="perspective-hud far" data-perspective-side={farSide}><span className="perspective-label">ĐỐI THỦ · PHÍA XA</span><PlayerHud match={match} side={farSide} low={match.clocksMs[farSide] <= 10000} /></div><GameBoard state={state} viewSide={viewSide} interactionSide={online.viewerSide} disabled={!canPlay || pending} onMove={(from: Coordinate, to: Coordinate) => { if (online.viewerSide) void runCommand(() => submitMove(roomId, from, to, match.stateVersion)); }} /><div className="perspective-hud near" data-perspective-side={nearSide}><span className="perspective-label">BẠN · PHÍA GẦN</span><PlayerHud match={match} side={nearSide} low={match.clocksMs[nearSide] <= 10000} /></div></div><div className="match-actions"><span className="turn-copy">{match.status === "PLAYING" ? canPlay ? "Đến lượt bạn — chọn quân rồi chọn ô đích." : `Đang chờ ${match.currentTurn === "BLUE" ? playerLabel(match, "BLUE") : playerLabel(match, "RED")}.` : "Bàn cờ chỉ nhận nước đi khi trận đang diễn ra."}</span>{match.status === "PLAYING" && <Button variant="danger" onClick={() => setConfirmSurrender(true)} disabled={pending || lockConflict || online.connection !== "connected"}>Đầu hàng</Button>}</div></div><aside className="game-room-info" aria-label="Thông tin trận đấu"><div className="game-room-feed"><section className="move-log" aria-labelledby="move-log-title"><div className="rail-heading"><h3 id="move-log-title">NHẬT KÝ NƯỚC ĐI</h3><span>{moveLog.length}</span></div>{moveLog.length === 0 ? <p className="rail-empty">Chưa có nước đi được ghi nhận.</p> : <ol>{moveLog.map((move) => <li key={move.id}><span className={`feed-side ${move.side.toLowerCase()}`}>{move.side === "BLUE" ? "X" : "Đ"}</span><span>{move.from} → {move.to}</span>{move.captured && <strong>ĂN {move.captured}</strong>}</li>)}</ol>}</section><section className="combat-feed" aria-labelledby="combat-feed-title" aria-live="polite"><div className="rail-heading"><h3 id="combat-feed-title">COMBAT FEED</h3><span>{combatFeed.length}</span></div>{combatFeed.length === 0 ? <p className="rail-empty">Đang chờ diễn biến trận đấu.</p> : <ul>{combatFeed.map((entry) => <li key={entry.id} className={entry.tone}><span className="feed-pulse" aria-hidden="true" />{entry.text}</li>)}</ul>}</section></div><PerspectiveInfoCard match={match} side={farSide} /><PerspectiveInfoCard match={match} side={nearSide} />{terminal && <ResultPanel status={match.status === "ABORTED" ? "ABORTED" : "FINISHED"} winner={match.winner} viewerSide={online.viewerSide} resultReason={match.resultReason} mode={match.mode} rating={match.rating} stats={resultStats} rematchState={rematchState} onRematch={match.status === "FINISHED" ? () => void handleRematch() : undefined} onRejectRematch={match.status === "FINISHED" ? () => void handleRejectRematch() : undefined} onBack={() => navigate(routes.home)} />}</aside></div></>}
     <Modal open={confirmSurrender} title="Bạn chắc chắn muốn đầu hàng?" description="Kết quả sẽ do máy chủ ghi nhận và không thể hoàn tác." dismissible={false} onClose={() => setConfirmSurrender(false)}><div className="modal-actions"><Button variant="secondary" onClick={() => setConfirmSurrender(false)}>Hủy</Button><Button variant="danger" onClick={() => { setConfirmSurrender(false); void runCommand(() => surrender(roomId, match.stateVersion), "Đã đầu hàng."); }}>Đầu hàng</Button></div></Modal>
     <Modal open={settingsOpen} title="Cài đặt trong trận" description="Các tuỳ chọn này chỉ thay đổi phần hiển thị và âm thanh." onClose={() => setSettingsOpen(false)}><div className="form-stack"><label className="check-row"><input type="checkbox" checked={soundEnabled} onChange={(event) => { const enabled = event.target.checked; setSoundEnabled(enabled); localStorage.setItem("ottv2:sound", enabled ? "on" : "off"); }} /> Âm thanh giao diện</label><label>Âm lượng hiệu ứng <input type="range" min="0" max="100" value={soundVolume} onChange={(event) => { const value = Number(event.target.value); setSoundVolume(value); localStorage.setItem("ottv2:sound-volume", String(value)); }} aria-valuetext={`${soundVolume}%`} /></label><label className="check-row"><input type="checkbox" checked={countdownSound} onChange={(event) => { const enabled = event.target.checked; setCountdownSound(enabled); localStorage.setItem("ottv2:countdown-sound", enabled ? "on" : "off"); }} /> Âm thanh đếm ngược</label><label className="check-row"><input type="checkbox" defaultChecked={localStorage.getItem("ottv2:reduced-motion") === "on"} onChange={(event) => { localStorage.setItem("ottv2:reduced-motion", event.target.checked ? "on" : "off"); applyPresentationPreferences(); }} /> Giảm chuyển động</label><Button variant="secondary" onClick={() => setSettingsOpen(false)}>Đóng</Button></div></Modal>
   </section>;
 }
 
-function formatDelta(delta: number): string { return `${delta >= 0 ? "+" : ""}${delta}`; }
 function connectionLabel(connection: "connecting" | "connected" | "reconnecting" | "offline"): string { return connection === "connected" ? "Đã kết nối" : connection === "connecting" ? "Đang kết nối" : connection === "reconnecting" ? "Đang kết nối lại" : "Mất kết nối"; }
 
 function semanticTypeForMatchEvent(type: MatchEventEnvelope["type"]): SemanticEventType | null {
@@ -300,6 +341,7 @@ function semanticTypeForMatchEvent(type: MatchEventEnvelope["type"]): SemanticEv
     MATCH_ABORTED: "SERVER_INTERRUPTION",
     CLOCK_TICK: "CLOCK_WARNING",
     REMATCH_REQUESTED: "REMATCH",
+    REMATCH_REJECTED: "REMATCH",
   };
   return mapping[type] ?? null;
 }

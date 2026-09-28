@@ -33,7 +33,7 @@ export const HistoryMatchCardSchema = z.object({
   mode: HistoryModeSchema,
   status: z.enum(["FINISHED", "ABORTED"]),
   result: z.enum(["WIN", "LOSS", "ABORTED"]),
-  resultReason: z.enum(["EXTINCTION", "GOAL_REACHED", "TIMEOUT", "SURRENDER", "SERVER_INTERRUPTION"]).nullable(),
+  resultReason: z.enum(["EXTINCTION", "GOAL_REACHED", "TIMEOUT", "SURRENDER", "DISCONNECT_TIMEOUT", "SERVER_INTERRUPTION"]).nullable(),
   winner: z.enum(["BLUE", "RED"]).nullable(),
   viewer: HistoryPlayerSchema,
   opponent: HistoryPlayerSchema.nullable(),

@@ -16,6 +16,11 @@ function matchSnapshot() {
   return { matchId: "11111111-1111-4111-8111-111111111111", roomId: "ABC123", mode: "UNRANKED", status: "PLAYING", players: [{ userId: "blue-user", username: "blue_user", displayName: "Người chơi Xanh", side: "BLUE", ready: true, connected: true }, { userId: "red-user", username: "red_user", displayName: "Người chơi Đỏ", side: "RED", ready: true, connected: true }], board: initialBoard(), pieceCounts: { BLUE: { R: 3, P: 3, S: 3 }, RED: { R: 3, P: 3, S: 3 } }, currentTurn: "BLUE", winner: null, resultReason: null, clocksMs: { BLUE: 60000, RED: 60000 }, timerSeconds: 60, countdownEndsAt: null, startedAt: Date.now(), endedAt: null, sequence: 1, stateVersion: 1, rating: null };
 }
 
+function resultSnapshot(resultReason: "EXTINCTION" | "GOAL_REACHED" | "TIMEOUT" | "SURRENDER" | "SERVER_INTERRUPTION", status: "FINISHED" | "ABORTED" = "FINISHED") {
+  const snapshot = matchSnapshot();
+  return { ...snapshot, mode: "RANKED", status, currentTurn: null, winner: status === "ABORTED" ? null : "BLUE", resultReason, endedAt: Date.now(), sequence: 42, stateVersion: 42, rating: status === "ABORTED" ? null : { blueBefore: 1200, blueAfter: 1216, blueDelta: 16, redBefore: 1200, redAfter: 1184, redDelta: -16 } };
+}
+
 async function disableEventSource(page: Page) {
   await page.addInitScript(() => {
     class SilentEventSource { onmessage: ((event: MessageEvent) => void) | null = null; onerror: ((event: Event) => void) | null = null; close() {} }
@@ -27,7 +32,7 @@ test("public shell uses Vietnamese navigation", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("link", { name: "Trang chủ" }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Lịch sử" }).first()).toBeVisible();
-  await expect(page.getByRole("heading", { name: /Oẳn Tù Tì/i })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Đọc vị.*Chiếm bàn/i })).toBeVisible();
 });
 
 test("mobile exposes safe bottom navigation", async ({ page }) => {
@@ -70,6 +75,33 @@ test("game room hides global navigation and renders a 9 by 9 board", async ({ pa
   await expect(page.getByRole("gridcell")).toHaveCount(81);
   await expect(page.getByRole("navigation", { name: "Điều hướng chính" })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Điều hướng di động" })).toHaveCount(0);
+});
+
+for (const [reason, title, status] of [
+  ["GOAL_REACHED", "CHIẾN THẮNG", "FINISHED"],
+  ["TIMEOUT", "CHIẾN THẮNG", "FINISHED"],
+  ["SURRENDER", "CHIẾN THẮNG", "FINISHED"],
+  ["SERVER_INTERRUPTION", "TRẬN ĐẤU BỊ GIÁN ĐOẠN", "ABORTED"],
+] as const) {
+  test(`result screen stays explicit for ${reason}`, async ({ page }) => {
+    await disableEventSource(page);
+    await page.route("http://localhost:3001/matches/RESULT1?*", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ match: resultSnapshot(reason, status), viewerSide: "BLUE" }) }));
+    await page.goto("/game/RESULT1");
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+    await expect(page.locator(".result-stats")).toBeVisible();
+    await expect(page.getByText(reason === "SERVER_INTERRUPTION" ? "Máy chủ đã khởi động lại hoặc kết nối trận bị mất." : reason === "TIMEOUT" ? "Đối thủ đã hết thời gian." : reason === "SURRENDER" ? "Đối thủ đã đầu hàng." : "Bạn đã chiếm ô đích.")).toBeVisible();
+    if (status === "ABORTED") await expect(page.getByRole("button", { name: "ĐẤU LẠI" })).toHaveCount(0);
+  });
+}
+
+test("result rematch shows a server-authoritative pending state", async ({ page }) => {
+  await disableEventSource(page);
+  const finished = resultSnapshot("SURRENDER");
+  await page.route("http://localhost:3001/matches/RESULT1?*", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ match: finished, viewerSide: "BLUE" }) }));
+  await page.route("http://localhost:3001/matches/RESULT1/rematch", async (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ match: { ...finished, rematchRequestedBy: "BLUE" } }) }));
+  await page.goto("/game/RESULT1");
+  await page.getByRole("button", { name: "ĐẤU LẠI" }).click();
+  await expect(page.locator(".rematch-status")).toContainText("Đã gửi yêu cầu chơi lại");
 });
 
 test("offline keeps canonical orientation across BLUE and RED turns", async ({ page }) => {
@@ -217,8 +249,8 @@ test("authenticated homepage renders friends preview after an internally scrolli
   });
   await page.goto("/");
   await expect(page.locator(".room-card")).toHaveCount(10);
-  await expect(page.locator("#friends-preview-heading")).toBeVisible();
-  await expect(page.locator(".friend-preview-card")).toHaveCount(1);
+  await expect(page.locator("#friends-preview-title")).toBeVisible();
+  await expect(page.locator(".friends-preview-row")).toHaveCount(1);
   const scrollable = await page.locator(".room-grid-scroll").evaluate((element) => element.scrollHeight > element.clientHeight);
   expect(scrollable).toBe(true);
   await page.getByLabel("Tìm Room ID").fill("ZZZZZZ");

@@ -7,7 +7,7 @@ export const MatchModeSchema = z.enum(["UNRANKED", "RANKED"]);
 export const MatchSideSchema = z.enum(["BLUE", "RED"]);
 export const MatchPieceTypeSchema = z.enum(["R", "P", "S"]);
 export const MatchRuleStatusSchema = z.enum(["PLAYING", "FINISHED"]);
-export const MatchResultReasonSchema = z.enum(["EXTINCTION", "GOAL_REACHED", "TIMEOUT", "SURRENDER", "SERVER_INTERRUPTION"]).nullable();
+export const MatchResultReasonSchema = z.enum(["EXTINCTION", "GOAL_REACHED", "TIMEOUT", "SURRENDER", "DISCONNECT_TIMEOUT", "SERVER_INTERRUPTION"]).nullable();
 export const MatchCoordinateSchema = z.string().regex(/^[a-i][1-9]$/);
 export const MatchPieceSchema = z.object({ id: z.string().min(1), side: MatchSideSchema, type: MatchPieceTypeSchema });
 export const MatchPlayerSchema = z.object({
@@ -47,6 +47,7 @@ export const MatchSnapshotSchema = z.object({
   sequence: z.number().int().nonnegative(),
   stateVersion: z.number().int().nonnegative(),
   rating: MatchRatingSchema.nullable(),
+  rematchRequestedBy: MatchSideSchema.nullable().optional(),
 });
 export const MatchEventTypeSchema = z.enum([
   "MATCH_SNAPSHOT",
@@ -64,6 +65,7 @@ export const MatchEventTypeSchema = z.enum([
   "STATE_RESYNC",
   "MATCH_ABORTED",
   "RATING_UPDATED",
+  "REMATCH_REJECTED",
 ]);
 export const MatchEventEnvelopeSchema = SemanticEnvelopeSchema.extend({
   type: MatchEventTypeSchema,
@@ -80,6 +82,7 @@ export const SurrenderMatchRequestSchema = z.object({ stateVersion: z.number().i
 export const RematchRequestSchema = z.object({ stateVersion: z.number().int().nonnegative() });
 
 export type MatchStatus = z.infer<typeof MatchStatusSchema>;
+export type MatchResultReason = z.infer<typeof MatchResultReasonSchema>;
 export type MatchRating = z.infer<typeof MatchRatingSchema>;
 export type MatchEventType = z.infer<typeof MatchEventTypeSchema>;
 export type MatchSnapshot = z.infer<typeof MatchSnapshotSchema>;

@@ -16,12 +16,14 @@ export type LocalHistoryRecord = {
 };
 
 export type GuestProfile = { displayName: string };
+export type LocalSessionStats = { moves: number; captures: number; piecesLost: number };
 export type LocalSessionSnapshot = {
   mode: LocalMode;
   setup: { blueName: string; redName: string; timerSeconds: number };
   state: RuleState;
   clocks: Record<Side, number>;
   remaining: number;
+  stats?: LocalSessionStats;
   savedAt: string;
 };
 type ImportDecision = "IMPORTED" | "DECLINED";

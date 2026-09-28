@@ -349,6 +349,16 @@ Chi tiết: [B5_GAMEVIEW_ONLINE_ROOM.md](B5_GAMEVIEW_ONLINE_ROOM.md).
 - Reduced Motion bỏ fireworks/count-up nhưng giữ hierarchy.
 - E2E FINISHED, TIMEOUT, SURRENDER, INTERRUPTION.
 
+### Wave B6 execution evidence (đã thực thi)
+
+Chi tiết: [B6_RESULT_REMATCH.md](B6_RESULT_REMATCH.md).
+
+- [x] ResultPanel cinematic phân biệt Victory/Defeat/neutral interruption, reason copy, stats và reduced-motion.
+- [x] Ranked Elo before/after/delta count-up dùng rank config chung; non-ranked/local không hiển thị Elo.
+- [x] Rematch request/accept/reject server-authoritative; reset board, swap side và chuyển rematch sang Unranked.
+- [x] `DISCONNECT_TIMEOUT` được thêm vào shared contract/history và backend disconnect expiry.
+- [x] Web 53 tests, server 48 tests, typecheck/lint/build pass.
+
 ---
 
 ## 11. Wave B7 — History/Match Detail

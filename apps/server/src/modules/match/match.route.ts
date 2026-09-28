@@ -122,6 +122,13 @@ export async function registerMatchRoutes(app: FastifyInstance, auth: AuthServic
     return reply.status(200).send({ match });
   });
 
+  app.post<{ Params: { roomId: string } }>("/matches/:roomId/rematch/reject", async (request, reply) => {
+    const { context, room } = await memberRoom(auth, rooms, request);
+    matches.acquireActiveLock(room, context.user.id, clientIdOf(request));
+    const input = requireBody(request.body, RematchRequestSchema);
+    return reply.status(200).send({ match: matches.rejectRematch(room, actorOf(context), input.stateVersion) });
+  });
+
   app.get<{ Params: { roomId: string } }>("/matches/:roomId/events", async (request, reply) => {
     const { context, room } = await memberRoom(auth, rooms, request);
     const clientId = clientIdOf(request);

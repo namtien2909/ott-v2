@@ -26,6 +26,8 @@ type MatchState = {
   winner: Side | null;
   rating: MatchRating | null;
   rematchRequests: Set<string>;
+  rematchRequestedBy: Side | null;
+  sideByUserId: Map<string, Side>;
   fastReadyUsers: Set<string>;
 };
 
@@ -72,6 +74,8 @@ export class MatchManager {
         winner: null,
         rating: null,
         rematchRequests: new Set(),
+        rematchRequestedBy: null,
+        sideByUserId: new Map(),
         fastReadyUsers: new Set(),
       };
       this.matches.set(room.roomId, match);
@@ -263,25 +267,44 @@ export class MatchManager {
     this.assertVersion(match, stateVersion);
     if (match.status !== "FINISHED") throw this.invalidState("rematch", match.status);
     match.rematchRequests.add(player.userId);
+    match.rematchRequestedBy ??= player.side;
     this.emit(match, "REMATCH_REQUESTED");
     if (match.players.length === 2 && match.rematchRequests.size === 2) {
       match.matchId = randomUUID();
       match.ruleState = createInitialState();
       match.status = "WAITING_READY";
+      match.mode = "UNRANKED";
       match.clocksMs = { BLUE: match.timerSeconds * 1000, RED: match.timerSeconds * 1000 };
       match.countdownEndsAt = null;
       match.turnStartedAt = null;
       match.winner = null;
       match.resultReason = null;
       match.rating = null;
+      match.players.forEach((item) => {
+        item.side = item.side === "BLUE" ? "RED" : "BLUE";
+        match.sideByUserId.set(item.userId, item.side);
+      });
       match.startedAt = null;
       match.endedAt = null;
       match.rematchRequests.clear();
+      match.rematchRequestedBy = null;
       match.fastReadyUsers.clear();
       match.players.forEach((item) => { item.ready = false; });
       match.stateVersion = 0;
       this.emit(match, "MATCH_SNAPSHOT");
     }
+    return this.snapshot(match);
+  }
+
+  rejectRematch(room: RoomDetail, actor: MatchActor, stateVersion: number): MatchSnapshot {
+    const match = this.getMatch(room);
+    this.player(match, actor.userId);
+    this.assertVersion(match, stateVersion);
+    if (match.status !== "FINISHED") throw this.invalidState("reject-rematch", match.status);
+    if (match.rematchRequests.size === 0) throw this.invalidState("reject-rematch", match.status);
+    match.rematchRequests.clear();
+    match.rematchRequestedBy = null;
+    this.emit(match, "REMATCH_REJECTED");
     return this.snapshot(match);
   }
 
@@ -297,7 +320,9 @@ export class MatchManager {
   private syncPlayers(match: MatchState, room: RoomDetail): void {
     const members = room.members.slice(0, 2);
     for (const [index, member] of members.entries()) {
-      const side: Side = member.userId === room.hostUserId || index === 0 ? "BLUE" : "RED";
+      const defaultSide: Side = member.userId === room.hostUserId || index === 0 ? "BLUE" : "RED";
+      const side = match.sideByUserId.get(member.userId) ?? defaultSide;
+      match.sideByUserId.set(member.userId, side);
       const existing = match.players.find((item) => item.userId === member.userId);
       if (existing) { existing.username = member.username; existing.displayName = member.displayName; existing.side = side; continue; }
       match.players.push({ userId: member.userId, username: member.username, displayName: member.displayName, side, ready: false, connected: false });
@@ -361,7 +386,7 @@ export class MatchManager {
     if (!match || (match.status !== "COUNTDOWN" && match.status !== "PLAYING") || this.connections.get(roomId)?.get(userId)?.size) return;
     match.status = "ABORTED";
     match.winner = null;
-    match.resultReason = "SERVER_INTERRUPTION";
+    match.resultReason = "DISCONNECT_TIMEOUT";
     match.ruleState = { ...match.ruleState, status: "FINISHED", currentTurn: null, winner: null, resultReason: null };
     match.stateVersion += 1;
     match.turnStartedAt = null;
@@ -400,6 +425,7 @@ export class MatchManager {
       sequence: match.sequence,
       stateVersion: match.stateVersion,
       rating: match.rating,
+      rematchRequestedBy: match.rematchRequestedBy,
     };
   }
 

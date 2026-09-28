@@ -72,6 +72,26 @@ describe("W4 MatchManager", () => {
     expect(rematch.winner).toBeNull();
     expect(rematch.players.every((player) => !player.ready)).toBe(true);
     expect(rematch.matchId).not.toBe(finished.matchId);
+    expect(rematch.mode).toBe("UNRANKED");
+    expect(rematch.players.find((player) => player.userId === host.userId)?.side).toBe("RED");
+    expect(rematch.players.find((player) => player.userId === guest.userId)?.side).toBe("BLUE");
+  });
+
+  it("keeps an authoritative rematch request rejectable without resetting the board", async () => {
+    let now = 3_500;
+    const manager = new MatchManager(() => now);
+    const room = await roomForMatch();
+    manager.ready(room, host, true);
+    manager.ready(room, guest, true);
+    now += 3_001;
+    const started = manager.tick(room);
+    const finished = manager.surrender(room, host, started.stateVersion);
+    const requested = manager.rematch(room, host, finished.stateVersion);
+    expect(requested.rematchRequestedBy).toBe("BLUE");
+    const rejected = manager.rejectRematch(room, guest, requested.stateVersion);
+    expect(rejected.status).toBe("FINISHED");
+    expect(rejected.rematchRequestedBy).toBeNull();
+    expect(rejected.matchId).toBe(finished.matchId);
   });
 
   it("emits disconnect/resync events and preserves the match during the grace window", async () => {
@@ -118,7 +138,7 @@ describe("W4 MatchManager", () => {
       vi.advanceTimersByTime(31);
       const aborted = manager.ensure(room);
       expect(aborted.status).toBe("ABORTED");
-      expect(aborted.resultReason).toBe("SERVER_INTERRUPTION");
+      expect(aborted.resultReason).toBe("DISCONNECT_TIMEOUT");
       expect(events).toContain("MATCH_ABORTED");
     } finally {
       vi.useRealTimers();
