@@ -472,6 +472,16 @@ Tabs/sections:
 - Local clock đúng side.
 - Handoff không làm sai canonical board.
 
+### Wave B11 execution evidence (đã thực thi)
+
+Chi tiết: [B11_GUEST_AI_OFFLINE.md](B11_GUEST_AI_OFFLINE.md).
+
+- [x] Guest identity và history chỉ lưu local; import sau login giữ one-time decision, retry và dedupe.
+- [x] AI Normal dùng shared rules/board, fixed orientation, local timer và không mở realtime.
+- [x] Offline 2P giữ canonical board, timer theo side, handoff overlay và leave guard.
+- [x] Phiên đang chơi được lưu local, restore sau reload, xoá khi finish/leave và có recoverable storage error.
+- [x] Local result không hiển thị Elo/ranked card.
+
 ---
 
 ## 16. Wave B12 — Spectator/Not Found/App Error

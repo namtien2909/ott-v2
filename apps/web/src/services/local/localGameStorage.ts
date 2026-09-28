@@ -1,3 +1,5 @@
+import type { RuleState, Side } from "@ottv2/game-rules";
+
 export type LocalMode = "GUEST" | "AI" | "OFFLINE";
 export type LocalResult = "WIN" | "LOSS" | "DRAW";
 
@@ -14,6 +16,14 @@ export type LocalHistoryRecord = {
 };
 
 export type GuestProfile = { displayName: string };
+export type LocalSessionSnapshot = {
+  mode: LocalMode;
+  setup: { blueName: string; redName: string; timerSeconds: number };
+  state: RuleState;
+  clocks: Record<Side, number>;
+  remaining: number;
+  savedAt: string;
+};
 type ImportDecision = "IMPORTED" | "DECLINED";
 
 const DB_NAME = "ottv2-local";
@@ -25,6 +35,7 @@ const IMPORT_KEY = "guest-import-decision";
 const FALLBACK_HISTORY = "ottv2.local.history";
 const FALLBACK_PROFILE = "ottv2.local.profile";
 const FALLBACK_IMPORT = "ottv2.local.import";
+const SESSION_PREFIX = "local-session:";
 
 function fallbackGet<T>(key: string, fallback: T): T {
   try {
@@ -94,6 +105,27 @@ export async function getImportDecision(): Promise<ImportDecision | null> {
 export async function setImportDecision(decision: ImportDecision): Promise<void> {
   try { await withStore(META_STORE, "readwrite", (store) => store.put(decision, IMPORT_KEY)); }
   catch { fallbackSet(FALLBACK_IMPORT, decision); }
+}
+
+export async function getLocalSession(mode: LocalMode): Promise<LocalSessionSnapshot | null> {
+  const key = `${SESSION_PREFIX}${mode}`;
+  try { return (await withStore<LocalSessionSnapshot | undefined>(META_STORE, "readonly", (store) => store.get(key))) ?? null; }
+  catch { return fallbackGet<LocalSessionSnapshot | null>(key, null); }
+}
+
+export async function setLocalSession(session: LocalSessionSnapshot): Promise<void> {
+  const key = `${SESSION_PREFIX}${session.mode}`;
+  try { await withStore(META_STORE, "readwrite", (store) => store.put(session, key)); }
+  catch { fallbackSet(key, session); }
+}
+
+export async function clearLocalSession(mode: LocalMode): Promise<void> {
+  const key = `${SESSION_PREFIX}${mode}`;
+  try {
+    await withStore(META_STORE, "readwrite", (store) => store.delete(key));
+  } catch {
+    try { globalThis.localStorage?.removeItem(key); } catch { /* storage can be unavailable in private mode */ }
+  }
 }
 
 export async function clearGuestHistory(): Promise<void> {

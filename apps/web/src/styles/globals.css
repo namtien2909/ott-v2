@@ -398,3 +398,9 @@ a { color: inherit; }
 .rail-empty { margin: 0; padding: .8rem; color: var(--text-muted); font-size: .74rem; }
 @media (max-width: 900px) { .game-room-feed { grid-template-columns: repeat(2, minmax(0, 1fr)); }.move-log ol, .combat-feed ul { max-height: 10rem; } }
 @media (max-width: 620px) { .game-room-feed { grid-template-columns: 1fr; }.move-log ol, .combat-feed ul { max-height: 8rem; } }
+
+/* B11 local session recovery */
+.local-session-error { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.local-session-resumed { margin: 0 auto .8rem; padding: .55rem .75rem; color: var(--success); border: 1px solid color-mix(in srgb, var(--success) 45%, var(--border)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--success) 8%, var(--surface)); font: 800 .72rem/1.2 var(--font-data); text-align: center; }
+.bot-mark { display: inline-grid; width: 1.65rem; height: 1.65rem; place-items: center; color: var(--data-accent); border: 1px solid currentColor; border-radius: .45rem; font: 900 .58rem/1 var(--font-data); letter-spacing: .04em; vertical-align: middle; }
+@media (max-width: 560px) { .local-session-error { align-items: flex-start; flex-direction: column; } }

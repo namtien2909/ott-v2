@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { applyMove, createInitialState, getLegalDestinations, type Coordinate, type RuleState, type Side } from "@ottv2/game-rules";
-import { Button } from "../components/ui";
+import { Button, LoadingState } from "../components/ui";
 import { GameBoard } from "../components/board";
 import { routes } from "../app/routes";
-import { addLocalHistory, getGuestProfile, setGuestProfile, type LocalMode } from "../services/local/localGameStorage";
+import { addLocalHistory, clearLocalSession, getGuestProfile, getLocalSession, setGuestProfile, setLocalSession, type LocalMode, type LocalSessionSnapshot } from "../services/local/localGameStorage";
 
 type LocalGamePageProps = { mode: LocalMode };
 type SetupValues = { blueName: string; redName: string; timerSeconds: number };
@@ -26,9 +26,32 @@ export default function LocalGamePage({ mode }: LocalGamePageProps) {
   const [clocks, setClocks] = useState<Record<Side, number>>({ BLUE: 60, RED: 60 });
   const [handoff, setHandoff] = useState<Side | null>(null);
   const [timedOut, setTimedOut] = useState(false);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [sessionError, setSessionError] = useState("");
+  const [restoredSession, setRestoredSession] = useState(false);
   const startedAt = useRef<number>(0);
   const turnStartedAt = useRef<number>(0);
   const recorded = useRef(false);
+  const sessionRef = useRef<LocalSessionSnapshot | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    setSessionLoading(true);
+    setSessionError("");
+    getLocalSession(mode).then((session) => {
+      if (!active || !session || session.mode !== mode || session.state.status !== "PLAYING") return;
+      setSetup(session.setup);
+      setState(session.state);
+      setClocks(session.clocks);
+      setRemaining(session.remaining);
+      startedAt.current = Date.now();
+      turnStartedAt.current = Date.now();
+      recorded.current = false;
+      setRestoredSession(true);
+      setStarted(true);
+    }).catch(() => { if (active) setSessionError("Không thể đọc phiên local đã lưu. Bạn có thể thử lại hoặc bắt đầu ván mới."); }).finally(() => { if (active) setSessionLoading(false); });
+    return () => { active = false; };
+  }, [mode]);
 
   useEffect(() => { if (mode !== "GUEST") return; void getGuestProfile().then((profile) => { if (!profile) return; setGuestReady(true); setSetup((current) => ({ ...current, blueName: profile.displayName })); }); }, [mode]);
   useEffect(() => {
@@ -82,14 +105,28 @@ export default function LocalGamePage({ mode }: LocalGamePageProps) {
     if (!started || state.status !== "FINISHED" || recorded.current) return;
     recorded.current = true;
     const result = state.winner === "BLUE" ? "WIN" : "LOSS";
+    void clearLocalSession(mode);
     void addLocalHistory({ localId: crypto.randomUUID(), mode, result, playerName: setup.blueName, opponentName: setup.redName, timerSeconds: setup.timerSeconds, durationSeconds: Math.max(0, Math.floor((Date.now() - startedAt.current) / 1000)), endedAt: new Date().toISOString(), scoreDelta: result === "WIN" ? 10 : -10 });
   }, [mode, setup, started, state]);
+
+  useEffect(() => {
+    sessionRef.current = { mode, setup, state, clocks, remaining, savedAt: new Date().toISOString() };
+  }, [clocks, mode, remaining, setup, state]);
+
+  useEffect(() => {
+    if (!started || state.status !== "PLAYING") return undefined;
+    const persist = () => { if (sessionRef.current) void setLocalSession(sessionRef.current); };
+    persist();
+    const timer = window.setInterval(persist, 2000);
+    return () => window.clearInterval(timer);
+  }, [mode, started, state.status]);
 
   async function start(): Promise<void> {
     if (mode === "GUEST") await setGuestProfile({ displayName: setup.blueName.trim() });
     startedAt.current = Date.now();
     turnStartedAt.current = Date.now();
     recorded.current = false;
+    setRestoredSession(false);
     setTimedOut(false);
     setClocks({ BLUE: setup.timerSeconds, RED: setup.timerSeconds });
     setRemaining(setup.timerSeconds);
@@ -119,11 +156,12 @@ export default function LocalGamePage({ mode }: LocalGamePageProps) {
     }
   }
 
-  if (!started) return <section className="local-page setup-page"><div className="local-setup-card"><p className="eyebrow">{copy.eyebrow}</p><h1>{copy.title}</h1><p className="form-intro">{copy.description}</p>{mode === "GUEST" && <div className="guest-warning" role="status"><strong>Bạn đang chơi với tư cách khách</strong><span>Lịch sử chỉ lưu trên thiết bị này; không có kết nối lại.</span></div>}<div className="form-stack"><label>Người chơi Xanh<input value={setup.blueName} onChange={(event) => setSetup((current) => ({ ...current, blueName: event.target.value }))} minLength={2} maxLength={20} disabled={mode === "GUEST" && !guestReady} /></label>{mode !== "AI" && <label>Người chơi Đỏ<input value={setup.redName} onChange={(event) => setSetup((current) => ({ ...current, redName: event.target.value }))} minLength={2} maxLength={20} /></label>}{mode === "AI" && <div className="local-bot-card"><span>HỒ SƠ BOT</span><strong>🔴 {copy.opponent}</strong><small>Độ khó bình thường · không kết nối máy chủ</small></div>}<label>Thời gian mỗi bên<select value={setup.timerSeconds} onChange={(event) => setSetup((current) => ({ ...current, timerSeconds: Number(event.target.value) }))}>{[30, 60, 300].map((value) => <option value={value} key={value}>{value}s</option>)}</select></label><div className="modal-actions"><Link className="button secondary" to={routes.home}>Quay lại</Link><Button onClick={() => void start()} disabled={mode === "GUEST" && !guestReady}>Bắt đầu ván</Button></div></div></div></section>;
+  if (sessionLoading) return <section className="local-page setup-page"><LoadingState fullPage label="Đang kiểm tra phiên local…" /></section>;
+  if (!started) return <section className="local-page setup-page"><div className="local-setup-card"><p className="eyebrow">{copy.eyebrow}</p><h1>{copy.title}</h1><p className="form-intro">{copy.description}</p>{sessionError && <div className="form-error local-session-error" role="alert"><strong>{sessionError}</strong><Button variant="secondary" onClick={() => window.location.reload()}>Thử lại</Button></div>}{mode === "GUEST" && <div className="guest-warning" role="status"><strong>Bạn đang chơi với tư cách khách</strong><span>Lịch sử chỉ lưu trên thiết bị này; không có kết nối lại.</span></div>}<div className="form-stack"><label>Người chơi Xanh<input value={setup.blueName} onChange={(event) => setSetup((current) => ({ ...current, blueName: event.target.value }))} minLength={2} maxLength={20} disabled={mode === "GUEST" && !guestReady} /></label>{mode !== "AI" && <label>Người chơi Đỏ<input value={setup.redName} onChange={(event) => setSetup((current) => ({ ...current, redName: event.target.value }))} minLength={2} maxLength={20} /></label>}{mode === "AI" && <div className="local-bot-card"><span>HỒ SƠ BOT</span><strong><span className="bot-mark" aria-hidden="true">AI</span> {copy.opponent}</strong><small>Độ khó bình thường · không kết nối máy chủ</small></div>}<label>Thời gian mỗi bên<select value={setup.timerSeconds} onChange={(event) => setSetup((current) => ({ ...current, timerSeconds: Number(event.target.value) }))}>{[30, 60, 300].map((value) => <option value={value} key={value}>{value}s</option>)}</select></label><div className="modal-actions"><Link className="button secondary" to={routes.home}>Quay lại</Link><Button onClick={() => void start()} disabled={mode === "GUEST" && !guestReady}>Bắt đầu ván</Button></div></div></div></section>;
 
   const activeName = state.currentTurn === "BLUE" ? setup.blueName : setup.redName;
   const viewSide: Side = "BLUE";
   const interactionSide: Side | null = mode === "AI" && state.currentTurn === "RED" ? null : state.currentTurn;
-  const leaveGame = () => { if (state.status === "PLAYING" && !window.confirm("Bạn có thay đổi chưa lưu. Rời ván sẽ kết thúc phiên local hiện tại?")) return; navigate(routes.home); };
-  return <section className="local-page local-game-page"><header className="local-game-header"><div><p className="eyebrow">{copy.eyebrow}</p><h1>{copy.title}</h1><p className="form-intro">Không có kết nối lại · trạng thái local là nguồn sự thật của ván này.</p></div><Button variant="secondary" onClick={leaveGame}>Thoát ván</Button></header>{mode === "GUEST" && <div className="guest-warning" role="status"><strong>Đang chơi với tư cách khách</strong><span>Lịch sử local sẽ được đề nghị đồng bộ sau khi bạn đăng nhập.</span></div>}<div className="local-hud"><div className="local-player blue"><span>XANH</span><strong>{setup.blueName}</strong><small>{state.currentTurn === "BLUE" ? "Đang đi" : "Chờ lượt"}</small></div><div className="local-turn"><small>ĐỒNG HỒ LOCAL</small><strong className={remaining <= 10 ? "low-time" : ""}>{remaining}s</strong><span>{state.status === "FINISHED" ? "Kết thúc" : activeName}</span></div><div className="local-player red"><span>ĐỎ</span><strong>{setup.redName}</strong><small>{state.currentTurn === "RED" ? "Đang đi" : "Chờ lượt"}</small></div></div>{handoff && <div className="turn-handoff" role="status" aria-live="assertive">Chuyển thiết bị cho <strong>{handoff === "BLUE" ? setup.blueName : setup.redName}</strong></div>}<div className="local-board-wrap"><GameBoard state={state} viewSide={viewSide} interactionSide={interactionSide} onMove={move} disabled={Boolean(handoff) || interactionSide === null} /></div>{state.status === "FINISHED" && <div className="result-card local-result"><span>{timedOut ? "HẾT GIỜ" : "KẾT THÚC VÁN LOCAL"}</span><strong>{state.winner === "BLUE" ? `${setup.blueName} thắng` : `${setup.redName} thắng`}</strong><small>Kết quả đã lưu trên thiết bị này.</small><Button onClick={() => { setStarted(false); setState(createInitialState()); }}>Chơi ván mới</Button></div>}</section>;
+  const leaveGame = () => { if (state.status === "PLAYING" && !window.confirm("Bạn có thay đổi chưa lưu. Rời ván sẽ kết thúc phiên local hiện tại?")) return; void clearLocalSession(mode); navigate(routes.home); };
+  return <section className="local-page local-game-page"><header className="local-game-header"><div><p className="eyebrow">{copy.eyebrow}</p><h1>{copy.title}</h1><p className="form-intro">Không có kết nối lại · trạng thái local là nguồn sự thật của ván này.</p></div><Button variant="secondary" onClick={leaveGame}>Thoát ván</Button></header>{restoredSession && <div className="local-session-resumed" role="status">Đã khôi phục ván local trên thiết bị này.</div>}{mode === "GUEST" && <div className="guest-warning" role="status"><strong>Đang chơi với tư cách khách</strong><span>Lịch sử local sẽ được đề nghị đồng bộ sau khi bạn đăng nhập.</span></div>}<div className="local-hud"><div className="local-player blue"><span>XANH</span><strong>{setup.blueName}</strong><small>{state.currentTurn === "BLUE" ? "Đang đi" : "Chờ lượt"}</small></div><div className="local-turn"><small>ĐỒNG HỒ LOCAL</small><strong className={remaining <= 10 ? "low-time" : ""}>{remaining}s</strong><span>{state.status === "FINISHED" ? "Kết thúc" : activeName}</span></div><div className="local-player red"><span>ĐỎ</span><strong>{setup.redName}</strong><small>{state.currentTurn === "RED" ? "Đang đi" : "Chờ lượt"}</small></div></div>{handoff && <div className="turn-handoff" role="status" aria-live="assertive">Chuyển thiết bị cho <strong>{handoff === "BLUE" ? setup.blueName : setup.redName}</strong></div>}<div className="local-board-wrap"><GameBoard state={state} viewSide={viewSide} interactionSide={interactionSide} onMove={move} disabled={Boolean(handoff) || interactionSide === null} /></div>{state.status === "FINISHED" && <div className="result-card local-result"><span>{timedOut ? "HẾT GIỜ" : "KẾT THÚC VÁN LOCAL"}</span><strong>{state.winner === "BLUE" ? `${setup.blueName} thắng` : `${setup.redName} thắng`}</strong><small>Kết quả đã lưu trên thiết bị này.</small><Button onClick={() => { setRestoredSession(false); setStarted(false); setState(createInitialState()); }}>Chơi ván mới</Button></div>}</section>;
 }
