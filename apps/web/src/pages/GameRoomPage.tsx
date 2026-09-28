@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { MatchEventEnvelope, MatchSnapshot } from "@ottv2/contracts";
 import { createInitialState, type Coordinate, type RuleState, type Side } from "@ottv2/game-rules";
@@ -14,6 +14,21 @@ import { createSemanticEvent, semanticEventBus, type SemanticEventType } from ".
 import { formatCountdown } from "./queueState";
 
 type OnlineState = { kind: "loading" } | { kind: "ready"; match: MatchSnapshot; viewerSide: Side | null; connection: "connecting" | "connected" | "reconnecting" | "offline"; lastEvent?: string } | { kind: "error"; message: string };
+type MoveLogEntry = { id: string; sequence: number; side: Side; from: Coordinate; to: Coordinate; piece: "R" | "P" | "S"; captured?: "R" | "P" | "S" };
+type CombatFeedEntry = { id: string; sequence: number; tone: "move" | "capture"; text: string };
+
+function deriveMove(previous: MatchSnapshot | null, next: MatchSnapshot): MoveLogEntry | null {
+  if (!previous || next.sequence <= previous.sequence) return null;
+  const previousById = new Map(Object.entries(previous.board).filter((entry): entry is [Coordinate, NonNullable<MatchSnapshot["board"][string]>] => entry[1] !== null).map(([coordinate, piece]) => [piece.id, { coordinate, piece }]));
+  const nextById = new Map(Object.entries(next.board).filter((entry): entry is [Coordinate, NonNullable<MatchSnapshot["board"][string]>] => entry[1] !== null).map(([coordinate, piece]) => [piece.id, { coordinate, piece }]));
+  for (const [id, current] of nextById) {
+    const before = previousById.get(id);
+    if (!before || before.coordinate === current.coordinate) continue;
+    const captured = previous.board[current.coordinate];
+    return { id: `${next.matchId}:${next.sequence}:${id}`, sequence: next.sequence, side: current.piece.side, from: before.coordinate, to: current.coordinate, piece: current.piece.type, captured: captured && captured.side !== current.piece.side ? captured.type : undefined };
+  }
+  return null;
+}
 
 function toRuleState(match: MatchSnapshot): RuleState {
   return {
@@ -51,24 +66,49 @@ export default function GameRoomPage() {
   const [pending, setPending] = useState(false);
   const [leavePending, setLeavePending] = useState(false);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const [moveLog, setMoveLog] = useState<MoveLogEntry[]>([]);
+  const [combatFeed, setCombatFeed] = useState<CombatFeedEntry[]>([]);
+  const previousMatchRef = useRef<MatchSnapshot | null>(null);
   const [lockConflict, setLockConflict] = useState(false);
   const [, setClockPulse] = useState(0);
+
+  const recordSnapshot = useCallback((next: MatchSnapshot) => {
+    const move = deriveMove(previousMatchRef.current, next);
+    previousMatchRef.current = next;
+    if (!move) return;
+    setMoveLog((current) => [...current, move].slice(-40));
+    const tone: CombatFeedEntry["tone"] = move.captured ? "capture" : "move";
+    setCombatFeed((current) => [{ id: move.id, sequence: move.sequence, tone, text: move.captured ? `${move.side === "BLUE" ? "Xanh" : "Đỏ"} ăn ${move.captured === "R" ? "Đấm" : move.captured === "P" ? "Bao" : "Kéo"} tại ${move.to}` : `${move.side === "BLUE" ? "Xanh" : "Đỏ"} di chuyển ${move.from} → ${move.to}` }, ...current].slice(0, 12));
+  }, []);
 
   useEffect(() => {
     if (isFixture) return undefined;
     let active = true;
     let unsubscribe: () => void = () => undefined;
     let offlineTimer: number | undefined;
+    const seenMessages = new Set<string>();
+    let lastSequence = -1;
+    let lastStateVersion = -1;
     setOnline({ kind: "loading" });
     getMatch(roomId).then((result) => {
       if (!active) return;
       const viewerSide = result.viewerSide;
       if (viewerSide) setViewSide(viewerSide);
+      previousMatchRef.current = result.match;
+      setMoveLog([]);
+      setCombatFeed([]);
+      lastSequence = result.match.sequence;
+      lastStateVersion = result.match.stateVersion;
       setOnline({ kind: "ready", match: result.match, viewerSide, connection: "connecting" });
       unsubscribe = subscribeToMatch(roomId, (event: MatchEventEnvelope) => {
         if (!active) return;
+        if (seenMessages.has(event.messageId) || event.stateVersion < lastStateVersion || (event.stateVersion === lastStateVersion && event.sequence <= lastSequence)) return;
+        seenMessages.add(event.messageId);
+        lastSequence = event.sequence;
+        lastStateVersion = event.stateVersion;
         if (offlineTimer !== undefined) window.clearTimeout(offlineTimer);
         window.dispatchEvent(new CustomEvent("ottv2:network-state", { detail: { state: "CONNECTED" } }));
+        recordSnapshot(event.payload);
         const semanticType = semanticTypeForMatchEvent(event.type);
         if (semanticType) semanticEventBus.emit(createSemanticEvent({ eventId: `${event.matchId}:${event.sequence}`, stateVersion: event.stateVersion, source: "match.realtime", type: semanticType, payload: event.payload }));
         setOnline((current) => current.kind === "ready" ? { ...current, match: event.payload, connection: "connected", lastEvent: event.type } : current);
@@ -87,7 +127,7 @@ export default function GameRoomPage() {
       return unsubscribe;
     }).catch((reason) => { if (active) setOnline({ kind: "error", message: reason instanceof ApiError ? reason.message : "Không thể kết nối match." }); });
     return () => { active = false; if (offlineTimer !== undefined) window.clearTimeout(offlineTimer); unsubscribe(); };
-  }, [isFixture, roomId]);
+  }, [isFixture, recordSnapshot, roomId]);
 
   useEffect(() => {
     if (isFixture) return undefined;
@@ -164,7 +204,7 @@ export default function GameRoomPage() {
     return () => window.removeEventListener("beforeunload", warn);
   }, [currentMatch]);
 
-  const updateMatch = useCallback((match: MatchSnapshot) => setOnline((current) => current.kind === "ready" ? { ...current, match, connection: "connected" } : current), []);
+  const updateMatch = useCallback((match: MatchSnapshot) => { recordSnapshot(match); setOnline((current) => current.kind === "ready" ? { ...current, match, connection: "connected" } : current); }, [recordSnapshot]);
   const runCommand = useCallback(async (command: () => Promise<{ match: MatchSnapshot }>, successMessage?: string) => {
     if (lockConflict || online.kind !== "ready" || online.connection !== "connected") {
       notify(lockConflict ? "Phòng đang được mở ở tab khác." : "Đang mất kết nối — thao tác tạm thời bị khoá.", "warning");
@@ -240,7 +280,7 @@ export default function GameRoomPage() {
     {match.status === "WAITING_READY" ? <WaitingRoom match={match} viewerSide={online.viewerSide} disabled={!online.viewerSide || pending || lockConflict || online.connection !== "connected"} copyStatus={copyStatus} onCopy={() => void copyRoomCode()} onLeave={() => void leaveWaitingRoom()} onReady={() => online.viewerSide && void runCommand(() => setReady(roomId, !isReady), isReady ? "Đã huỷ sẵn sàng." : "Đã sẵn sàng.")} leavePending={leavePending} /> : <>
     <div className="match-status-bar" aria-live="polite"><strong>{match.status === "COUNTDOWN" ? `Bắt đầu sau ${countdown ?? 0}` : match.status === "PLAYING" ? canPlay ? "LƯỢT CỦA BẠN" : "LƯỢT ĐỐI THỦ" : resultText}</strong><small>{match.status === "PLAYING" ? "Bàn cờ đang đồng bộ" : "Trạng thái trận đấu"}</small></div>
     {match.status === "COUNTDOWN" && <div className="countdown-banner" role="status" aria-live="assertive"><strong>{countdown ?? 0}</strong><span>Nhấn SPACE để bắt đầu ngay</span></div>}
-    <div className="game-room-layout"><div><div className="perspective-stage"><div className="perspective-hud far" data-perspective-side={farSide}><span className="perspective-label">ĐỐI THỦ · PHÍA XA</span><PlayerHud match={match} side={farSide} low={match.clocksMs[farSide] <= 10000} /></div><GameBoard state={state} viewSide={viewSide} interactionSide={online.viewerSide} disabled={!canPlay || pending} onMove={(from: Coordinate, to: Coordinate) => { if (online.viewerSide) void runCommand(() => submitMove(roomId, from, to, match.stateVersion)); }} /><div className="perspective-hud near" data-perspective-side={nearSide}><span className="perspective-label">BẠN · PHÍA GẦN</span><PlayerHud match={match} side={nearSide} low={match.clocksMs[nearSide] <= 10000} /></div></div><div className="match-actions"><span className="turn-copy">{match.status === "PLAYING" ? canPlay ? "Đến lượt bạn — chọn quân rồi chọn ô đích." : `Đang chờ ${match.currentTurn === "BLUE" ? playerLabel(match, "BLUE") : playerLabel(match, "RED")}.` : "Bàn cờ chỉ nhận nước đi khi trận đang diễn ra."}</span>{match.status === "PLAYING" && <Button variant="danger" onClick={() => setConfirmSurrender(true)} disabled={pending || lockConflict || online.connection !== "connected"}>Đầu hàng</Button>}</div></div><aside className="game-room-info" aria-label="Thông tin trận đấu"><PerspectiveInfoCard match={match} side={farSide} /><PerspectiveInfoCard match={match} side={nearSide} />{(match.status === "FINISHED" || match.status === "ABORTED") && <div className="result-card"><span>KẾT QUẢ TRẬN ĐẤU</span><strong>{match.status === "ABORTED" ? "Trận đấu bị gián đoạn" : match.winner === online.viewerSide ? "Chiến thắng" : match.winner ? "Thất bại" : "Không có người thắng"}</strong><small>{resultText}</small>{match.mode === "RANKED" && match.rating && <small className="rating-result">Elo · XANH {formatDelta(match.rating.blueDelta)} · ĐỎ {formatDelta(match.rating.redDelta)}</small>}<div className="result-actions">{match.status === "FINISHED" && <Button onClick={() => online.viewerSide && void runCommand(() => requestRematch(roomId, match.stateVersion), "Đã gửi yêu cầu chơi lại.")} disabled={pending || lockConflict || online.connection !== "connected"}>Chơi lại</Button>}<Link className="button secondary" to={routes.home}>Về trang chủ</Link></div></div>}</aside></div></>}
+    <div className="game-room-layout"><div><div className="perspective-stage"><div className="perspective-hud far" data-perspective-side={farSide}><span className="perspective-label">ĐỐI THỦ · PHÍA XA</span><PlayerHud match={match} side={farSide} low={match.clocksMs[farSide] <= 10000} /></div><GameBoard state={state} viewSide={viewSide} interactionSide={online.viewerSide} disabled={!canPlay || pending} onMove={(from: Coordinate, to: Coordinate) => { if (online.viewerSide) void runCommand(() => submitMove(roomId, from, to, match.stateVersion)); }} /><div className="perspective-hud near" data-perspective-side={nearSide}><span className="perspective-label">BẠN · PHÍA GẦN</span><PlayerHud match={match} side={nearSide} low={match.clocksMs[nearSide] <= 10000} /></div></div><div className="match-actions"><span className="turn-copy">{match.status === "PLAYING" ? canPlay ? "Đến lượt bạn — chọn quân rồi chọn ô đích." : `Đang chờ ${match.currentTurn === "BLUE" ? playerLabel(match, "BLUE") : playerLabel(match, "RED")}.` : "Bàn cờ chỉ nhận nước đi khi trận đang diễn ra."}</span>{match.status === "PLAYING" && <Button variant="danger" onClick={() => setConfirmSurrender(true)} disabled={pending || lockConflict || online.connection !== "connected"}>Đầu hàng</Button>}</div></div><aside className="game-room-info" aria-label="Thông tin trận đấu"><div className="game-room-feed"><section className="move-log" aria-labelledby="move-log-title"><div className="rail-heading"><h3 id="move-log-title">NHẬT KÝ NƯỚC ĐI</h3><span>{moveLog.length}</span></div>{moveLog.length === 0 ? <p className="rail-empty">Chưa có nước đi được ghi nhận.</p> : <ol>{moveLog.map((move) => <li key={move.id}><span className={`feed-side ${move.side.toLowerCase()}`}>{move.side === "BLUE" ? "X" : "Đ"}</span><span>{move.from} → {move.to}</span>{move.captured && <strong>ĂN {move.captured}</strong>}</li>)}</ol>}</section><section className="combat-feed" aria-labelledby="combat-feed-title" aria-live="polite"><div className="rail-heading"><h3 id="combat-feed-title">COMBAT FEED</h3><span>{combatFeed.length}</span></div>{combatFeed.length === 0 ? <p className="rail-empty">Đang chờ diễn biến trận đấu.</p> : <ul>{combatFeed.map((entry) => <li key={entry.id} className={entry.tone}><span className="feed-pulse" aria-hidden="true" />{entry.text}</li>)}</ul>}</section></div><PerspectiveInfoCard match={match} side={farSide} /><PerspectiveInfoCard match={match} side={nearSide} />{(match.status === "FINISHED" || match.status === "ABORTED") && <div className="result-card"><span>KẾT QUẢ TRẬN ĐẤU</span><strong>{match.status === "ABORTED" ? "Trận đấu bị gián đoạn" : match.winner === online.viewerSide ? "Chiến thắng" : match.winner ? "Thất bại" : "Không có người thắng"}</strong><small>{resultText}</small>{match.mode === "RANKED" && match.rating && <small className="rating-result">Elo · XANH {formatDelta(match.rating.blueDelta)} · ĐỎ {formatDelta(match.rating.redDelta)}</small>}<div className="result-actions">{match.status === "FINISHED" && <Button onClick={() => online.viewerSide && void runCommand(() => requestRematch(roomId, match.stateVersion), "Đã gửi yêu cầu chơi lại.")} disabled={pending || lockConflict || online.connection !== "connected"}>Chơi lại</Button>}<Link className="button secondary" to={routes.home}>Về trang chủ</Link></div></div>}</aside></div></>}
     <Modal open={confirmSurrender} title="Bạn chắc chắn muốn đầu hàng?" description="Kết quả sẽ do máy chủ ghi nhận và không thể hoàn tác." dismissible={false} onClose={() => setConfirmSurrender(false)}><div className="modal-actions"><Button variant="secondary" onClick={() => setConfirmSurrender(false)}>Hủy</Button><Button variant="danger" onClick={() => { setConfirmSurrender(false); void runCommand(() => surrender(roomId, match.stateVersion), "Đã đầu hàng."); }}>Đầu hàng</Button></div></Modal>
     <Modal open={settingsOpen} title="Cài đặt trong trận" description="Các tuỳ chọn này chỉ thay đổi phần hiển thị và âm thanh." onClose={() => setSettingsOpen(false)}><div className="form-stack"><label className="check-row"><input type="checkbox" checked={soundEnabled} onChange={(event) => { const enabled = event.target.checked; setSoundEnabled(enabled); localStorage.setItem("ottv2:sound", enabled ? "on" : "off"); }} /> Âm thanh giao diện</label><label>Âm lượng hiệu ứng <input type="range" min="0" max="100" value={soundVolume} onChange={(event) => { const value = Number(event.target.value); setSoundVolume(value); localStorage.setItem("ottv2:sound-volume", String(value)); }} aria-valuetext={`${soundVolume}%`} /></label><label className="check-row"><input type="checkbox" checked={countdownSound} onChange={(event) => { const enabled = event.target.checked; setCountdownSound(enabled); localStorage.setItem("ottv2:countdown-sound", enabled ? "on" : "off"); }} /> Âm thanh đếm ngược</label><label className="check-row"><input type="checkbox" defaultChecked={localStorage.getItem("ottv2:reduced-motion") === "on"} onChange={(event) => { localStorage.setItem("ottv2:reduced-motion", event.target.checked ? "on" : "off"); applyPresentationPreferences(); }} /> Giảm chuyển động</label><Button variant="secondary" onClick={() => setSettingsOpen(false)}>Đóng</Button></div></Modal>
   </section>;
@@ -271,7 +311,8 @@ function WaitingRoom({ match, viewerSide, disabled, copyStatus, onCopy, onLeave,
 function WaitingSlot({ match, side, viewerSide, disabled, onReady }: { match: MatchSnapshot; side: Side; viewerSide: Side | null; disabled: boolean; onReady: () => void }) {
   const player = match.players.find((item) => item.side === side);
   const isMine = viewerSide === side;
-  const isHost = player ? match.hostUserId === player.userId || (match.hostUserId === undefined && side === "BLUE") : false;
+  const hostUserId = (match as unknown as { hostUserId?: string }).hostUserId;
+  const isHost = player ? hostUserId === player.userId || (hostUserId === undefined && side === "BLUE") : false;
   return <article className={`waiting-slot ${side.toLowerCase()} ${player?.ready ? "ready" : ""}`} aria-label={`${side} slot`}><div className="waiting-slot-top"><span className="slot-side">{side}</span>{isHost && <span className="host-mark" title="Chủ phòng"><HostMark /><span className="visually-hidden">Chủ phòng</span></span>}</div><div className="slot-avatar" aria-hidden="true">{player ? player.displayName.slice(0, 2).toUpperCase() : "··"}</div><strong>{player?.displayName ?? "Đang chờ đối thủ"}</strong><small>{player ? `@${player.username}` : "Slot đang mở"}</small><span className="slot-ready-state">{player?.ready ? "READY" : "CHƯA SẴN SÀNG"}</span>{isMine && player && <Button onClick={onReady} disabled={disabled}>{player.ready ? "Huỷ sẵn sàng" : "Sẵn sàng"}</Button>}</article>;
 }
 

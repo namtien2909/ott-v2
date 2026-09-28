@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import {
   FILES,
   getLegalDestinations,
@@ -41,6 +41,8 @@ function sideLabel(side: Side | null): string {
 
 export function GameBoard({ state, viewSide, interactionSide = viewSide, onMove, disabled = false }: GameBoardProps) {
   const [selectedCoordinate, setSelectedCoordinate] = useState<Coordinate | null>(null);
+  const [focusedCoordinate, setFocusedCoordinate] = useState<Coordinate>(() => coordinatesForView(viewSide)[0] ?? "a1");
+  const squareRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const displayCoordinates = useMemo(() => coordinatesForView(viewSide), [viewSide]);
   const displayFiles = viewSide === "RED" ? [...FILES].reverse() : [...FILES];
   const displayRanks = viewSide === "RED" ? [...RANKS] : [...RANKS].reverse();
@@ -53,6 +55,10 @@ export function GameBoard({ state, viewSide, interactionSide = viewSide, onMove,
   useEffect(() => {
     setSelectedCoordinate(null);
   }, [interactionSide, state, viewSide]);
+
+  useEffect(() => {
+    if (!displayCoordinates.includes(focusedCoordinate)) setFocusedCoordinate(displayCoordinates[0] ?? "a1");
+  }, [displayCoordinates, focusedCoordinate]);
 
   function handleSquareClick(coordinate: Coordinate): void {
     if (disabled || interactionSide === null) return;
@@ -69,6 +75,29 @@ export function GameBoard({ state, viewSide, interactionSide = viewSide, onMove,
     setSelectedCoordinate(coordinate);
   }
 
+  function handleSquareKeyDown(event: KeyboardEvent<HTMLButtonElement>, coordinate: Coordinate): void {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setSelectedCoordinate(null);
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleSquareClick(coordinate);
+      return;
+    }
+    const index = displayCoordinates.indexOf(coordinate);
+    if (index < 0) return;
+    const column = index % 9;
+    const row = Math.floor(index / 9);
+    const nextIndex = event.key === "ArrowLeft" && column > 0 ? index - 1 : event.key === "ArrowRight" && column < 8 ? index + 1 : event.key === "ArrowUp" && row > 0 ? index - 9 : event.key === "ArrowDown" && row < 8 ? index + 9 : index;
+    if (nextIndex === index) return;
+    event.preventDefault();
+    const next = displayCoordinates[nextIndex];
+    setFocusedCoordinate(next);
+    squareRefs.current[next]?.focus();
+  }
+
   return (
     <section className="board-panel" aria-label={`Bàn cờ, góc nhìn phe ${sideLabel(viewSide)}`}>
       <div className="board-panel-header">
@@ -80,10 +109,10 @@ export function GameBoard({ state, viewSide, interactionSide = viewSide, onMove,
           {state.status === "FINISHED" ? `Kết thúc · ${sideLabel(state.winner)}` : `Lượt phe ${sideLabel(state.currentTurn)}`}
         </div>
       </div>
-      <p className="board-help" aria-live="polite">
+      <p className="board-help" role="status" aria-live="polite">
         {selectedCoordinate === null
-          ? `Góc nhìn phe ${sideLabel(viewSide)}. Chọn quân để xem ô có thể đi.`
-          : `Đang chọn ${selectedCoordinate}. Các ô sáng là nước đi hợp lệ.`}
+          ? `Góc nhìn phe ${sideLabel(viewSide)}. Chọn quân để xem ô có thể đi. Dùng phím mũi tên để di chuyển.`
+          : `Đang chọn ${selectedCoordinate}. ${legalDestinations.length} ô sáng là nước đi hợp lệ.`}
       </p>
       <div className="board-frame">
         <div className="board-axis board-axis-top" aria-hidden="true">{displayFiles.map((file) => <span key={`top-${file}`}>{file}</span>)}</div>
@@ -104,7 +133,11 @@ export function GameBoard({ state, viewSide, interactionSide = viewSide, onMove,
                   data-piece={piece?.type ?? "empty"}
                   key={coordinate}
                   onClick={() => handleSquareClick(coordinate)}
+                  onKeyDown={(event) => handleSquareKeyDown(event, coordinate)}
+                  onFocus={() => setFocusedCoordinate(coordinate)}
+                  ref={(element) => { squareRefs.current[coordinate] = element; }}
                   disabled={disabled}
+                  tabIndex={focusedCoordinate === coordinate ? 0 : -1}
                   role="gridcell"
                   type="button"
                   aria-label={`Ô ${coordinate}, ${pieceLabel(piece)}${goalSide ? `, đích ${goalSide === "blue" ? "Xanh" : "Đỏ"}` : ""}${isLegalDestination ? (isCapture ? ", có thể ăn quân" : ", có thể đi") : ""}`}

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createInitialState } from "@ottv2/game-rules";
 import { GameBoard } from "./GameBoard";
@@ -62,6 +62,26 @@ describe("GameBoard", () => {
     render(<GameBoard state={createInitialState()} viewSide="BLUE" onMove={onMove} />);
     fireEvent.click(screen.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ }));
     fireEvent.click(screen.getByRole("gridcell", { name: /Ô b2, trống/ }));
+    expect(onMove).toHaveBeenCalledWith("b1", "b2");
+  });
+
+  it("supports roving focus and keyboard select/commit", () => {
+    const onMove = vi.fn();
+    render(<GameBoard state={createInitialState()} viewSide="BLUE" onMove={onMove} />);
+    const gridcells = screen.getAllByRole("gridcell");
+    const first = gridcells.find((cell) => cell.getAttribute("tabindex") === "0");
+    expect(first).toBeDefined();
+    expect(gridcells.filter((cell) => cell.getAttribute("tabindex") === "0")).toHaveLength(1);
+    if (!first) return;
+    act(() => fireEvent.keyDown(first, { key: "ArrowDown" }));
+    expect(gridcells.filter((cell) => cell.getAttribute("tabindex") === "0")).toHaveLength(1);
+    const piece = screen.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ });
+    piece.focus();
+    act(() => fireEvent.keyDown(piece, { key: "Enter" }));
+    expect(piece).toHaveAttribute("aria-pressed", "true");
+    const destination = screen.getByRole("gridcell", { name: /Ô b2, trống/ });
+    destination.focus();
+    act(() => fireEvent.keyDown(destination, { key: " " }));
     expect(onMove).toHaveBeenCalledWith("b1", "b2");
   });
 });

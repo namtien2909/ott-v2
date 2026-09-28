@@ -316,6 +316,16 @@ Desktop 3 cột:
 - MOVE/CAPTURE/RESYNC dedupe pass.
 - Input latency không bị VFX/audio block.
 
+### Wave B5 execution evidence (đã thực thi)
+
+Chi tiết: [B5_GAMEVIEW_ONLINE_ROOM.md](B5_GAMEVIEW_ONLINE_ROOM.md).
+
+- [x] Online Blue/Red viewer perspective cố định; không xoay theo current turn.
+- [x] Realtime event dedupe theo `messageId`, `stateVersion`, `sequence`; semantic event bus vẫn nhận event hợp lệ.
+- [x] Board roving focus, Arrow navigation, Enter/Space commit, Escape clear và live status.
+- [x] Move log + combat feed từ snapshot diff, giới hạn lịch sử và responsive right rail/mobile layout.
+- [x] Evidence: web typecheck/lint/build pass, 49 web tests pass, 43 workspace unit tests pass.
+
 ---
 
 ## 10. Wave B6 — Result/Rematch
