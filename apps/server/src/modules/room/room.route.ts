@@ -21,6 +21,15 @@ export async function registerRoomRoutes(app: FastifyInstance, auth: AuthService
     return reply.status(200).send({ rooms: rooms.list(Number.isFinite(limit) ? limit : 8) });
   });
 
+  app.get("/rooms/events", (request, reply) => {
+    reply.hijack();
+    reply.raw.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive" });
+    const write = (items: ReturnType<RoomManager["list"]>) => reply.raw.write(`data: ${JSON.stringify({ type: "ROOMS_SYNC", rooms: items })}\n\n`);
+    write(rooms.list(100));
+    const unsubscribe = rooms.subscribe(write);
+    const heartbeat = setInterval(() => reply.raw.write(": keep-alive\n\n"), 20000);
+    request.raw.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
+  });
   app.get<{ Params: { roomId: string } }>("/rooms/:roomId", async (request, reply) => {
     return reply.status(200).send({ room: rooms.search(request.params.roomId) });
   });

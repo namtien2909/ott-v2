@@ -59,7 +59,7 @@ corepack pnpm --filter @ottv2/web preview --host 127.0.0.1 --port 4173
 corepack pnpm smoke:production
 ```
 
-The smoke runner checks the backend health/metrics endpoints, CORS allowlist and SPA fallback for every canonical route. Set `W12_WEB_URL`, `W12_API_URL` and `W12_WEB_ORIGIN` to run the same checks against a deployed URL. `render.yaml` is a deployment blueprint; fill its secret values in Render instead of committing them.
+The smoke runner checks the single-service health/metrics endpoints, CORS allowlist and SPA fallback for every canonical route. Set `W12_API_URL` (and optionally `W12_WEB_ORIGIN`) to run the same checks against a deployed URL. `render.yaml` is a deployment blueprint; fill its secret values in Render instead of committing them.
 
 ## Documentation
 

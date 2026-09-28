@@ -19,6 +19,16 @@ describe("W3 RoomManager", () => {
     expect(manager.search(privateRoom.roomId).members).toEqual([]);
   });
 
+  it("publishes only public waiting metadata to Room Browser subscribers", async () => {
+    const manager = new RoomManager();
+    const snapshots: string[][] = [];
+    const unsubscribe = manager.subscribe((rooms) => snapshots.push(rooms.map((room) => room.roomId)));
+    const publicRoom = await manager.create(host, publicInput);
+    await manager.create(guest, { ...publicInput, visibility: "PRIVATE", password: "secret" });
+    await manager.join(guest, publicRoom.roomId, {});
+    unsubscribe();
+    expect(snapshots).toEqual([[publicRoom.roomId], [publicRoom.roomId], []]);
+  });
   it("enforces private password and a two-player active capacity", async () => {
     const manager = new RoomManager();
     const room = await manager.create(host, { ...publicInput, visibility: "PRIVATE", password: "secret" });

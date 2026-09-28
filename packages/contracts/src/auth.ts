@@ -4,6 +4,7 @@ export const UsernameSchema = z.string().trim().regex(/^[A-Za-z0-9_]{4,20}$/, "U
 export const FullNameSchema = z.string().trim().min(2).max(50);
 export const DisplayNameSchema = z.string().trim().min(2).max(20);
 export const PasswordSchema = z.string().min(8, "Mật khẩu phải có ít nhất 8 ký tự.");
+export const AvatarPresetSchema = z.enum(["robot", "wolf", "fox", "panda", "arena"]);
 
 export const RegisterRequestSchema = z.object({
   fullName: FullNameSchema,
@@ -33,6 +34,7 @@ export const ProfilePatchRequestSchema = z.object({
   fullName: FullNameSchema.optional(),
   displayName: DisplayNameSchema.optional(),
   theme: z.enum(["light", "dark", "system"]).optional(),
+  avatarPreset: AvatarPresetSchema.optional(),
 }).strict();
 
 export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
@@ -40,3 +42,4 @@ export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 export type RecoverRequest = z.infer<typeof RecoverRequestSchema>;
 export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequestSchema>;
 export type ProfilePatchRequest = z.infer<typeof ProfilePatchRequestSchema>;
+export type AvatarPreset = z.infer<typeof AvatarPresetSchema>;

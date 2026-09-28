@@ -4,8 +4,7 @@
 
 1. PostgreSQL is running and `.env` points to the disposable local database.
 2. `corepack pnpm db:status` reports no pending migration.
-3. Backend is running on `http://127.0.0.1:3001`.
-4. Frontend production preview is running on `http://127.0.0.1:4173`.
+3. The single backend service is running on `http://127.0.0.1:3001` and has served the web bundle.
 
 ## Rehearsal order
 
@@ -22,12 +21,11 @@
 
 ## Public run
 
-After Render deployment, export the three URLs and rerun the exact gate:
+After the single Render service deployment, run the exact gate:
 
 ```powershell
-$env:W12_WEB_URL="https://<static-service>.onrender.com"
-$env:W12_API_URL="https://<api-service>.onrender.com"
-$env:W12_WEB_ORIGIN=$env:W12_WEB_URL
+$env:W12_API_URL="https://<single-service>.onrender.com"
+$env:W12_WEB_ORIGIN=$env:W12_API_URL
 corepack pnpm smoke:production
 ```
 

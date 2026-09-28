@@ -35,8 +35,8 @@ function coordinatesForView(viewSide: Side): Coordinate[] {
 
 function pieceLabel(piece: Piece | null): string {
   if (piece === null) return "trống";
-  const names = { R: "Rock", P: "Paper", S: "Scissors" } as const;
-  return `${piece.side === "BLUE" ? "Xanh" : "Đỏ"} ${names[piece.type]}`;
+  const names = { R: "Đấm", P: "Bao", S: "Kéo" } as const;
+  return `Quân ${names[piece.type]} phe ${piece.side === "BLUE" ? "Xanh" : "Đỏ"}`;
 }
 
 export function GameBoard({ state, viewSide, onMove, disabled = false }: GameBoardProps) {
@@ -73,7 +73,7 @@ export function GameBoard({ state, viewSide, onMove, disabled = false }: GameBoa
     <section className="board-panel" aria-label={`Bàn cờ, góc nhìn ${viewSide}`}>
       <div className="board-panel-header">
         <div>
-          <p className="eyebrow">W1 / GAME RULES FIXTURE</p>
+          <p className="eyebrow">BÀN CỜ CHIẾN THUẬT</p>
           <h2>Bàn cờ 9×9</h2>
         </div>
         <div className={`turn-badge ${state.currentTurn?.toLowerCase() ?? "finished"}`}>
@@ -82,8 +82,8 @@ export function GameBoard({ state, viewSide, onMove, disabled = false }: GameBoa
       </div>
       <p className="board-help" aria-live="polite">
         {selectedCoordinate === null
-          ? `Góc nhìn ${viewSide}. Chọn một quân ${viewSide} để xem ô có thể đi.`
-          : `Đang chọn ${selectedCoordinate}. Ô sáng là legal move cục bộ; chưa gửi nước đi.`}
+          ? `Góc nhìn ${viewSide === "BLUE" ? "Xanh" : "Đỏ"}. Chọn quân để xem ô có thể đi.`
+          : `Đang chọn ${selectedCoordinate}. Các ô sáng là nước đi hợp lệ.`}
       </p>
       <div className="board-frame">
         <div className="board-axis board-axis-top" aria-hidden="true">{displayFiles.map((file) => <span key={`top-${file}`}>{file}</span>)}</div>
@@ -122,7 +122,7 @@ export function GameBoard({ state, viewSide, onMove, disabled = false }: GameBoa
         <div className="board-axis board-axis-bottom" aria-hidden="true">{displayFiles.map((file) => <span key={`bottom-${file}`}>{file}</span>)}</div>
       </div>
       <div className="board-legend" aria-label="Chú thích quân cờ">
-        <span><b>✊</b> Rock</span><span><b>✋</b> Paper</span><span><b>✌️</b> Scissors</span>
+        <span><b>✊</b> Đấm</span><span><b>✋</b> Bao</span><span><b>✌️</b> Kéo</span>
       </div>
     </section>
   );

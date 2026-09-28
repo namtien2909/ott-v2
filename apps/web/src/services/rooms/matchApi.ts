@@ -11,6 +11,8 @@ export function setReady(roomId: string, ready: boolean) {
   return requestJson<{ match: MatchSnapshot }>(`/matches/${encodeURIComponent(roomId)}/ready`, { method: "POST", body: { ready }, headers: { "X-Client-Id": getClientId() } });
 }
 
+export function fastReady(roomId: string) { return requestJson<{ match: MatchSnapshot }>(`/matches/${encodeURIComponent(roomId)}/fast-ready`, { method: "POST", headers: { "X-Client-Id": getClientId() } }); }
+
 export function submitMove(roomId: string, from: string, to: string, stateVersion: number) {
   return requestJson<{ match: MatchSnapshot }>(`/matches/${encodeURIComponent(roomId)}/moves`, { method: "POST", body: { from, to, stateVersion }, headers: { "X-Client-Id": getClientId() } });
 }

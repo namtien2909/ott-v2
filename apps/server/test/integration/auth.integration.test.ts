@@ -61,6 +61,17 @@ describe("W2 auth/profile flow", () => {
     expect(row.recoveryUsedAt).toBeNull();
   });
 
+  it("persists an allowed avatar preset and exposes it in the public profile", async () => {
+    const input = account();
+    const registered = await app.inject({ method: "POST", url: "/auth/register", payload: input });
+    const cookie = sessionCookie(registered);
+    const updated = await app.inject({ method: "PATCH", url: "/profiles/me", headers: { cookie }, payload: { avatarPreset: "fox" } });
+    expect(updated.statusCode).toBe(200);
+    expect(updated.json().user.avatarPreset).toBe("fox");
+    const publicResponse = await app.inject({ method: "GET", url: `/profiles/${input.username}` });
+    expect(publicResponse.json().profile.avatarPreset).toBe("fox");
+  });
+
   it("allows multiple sessions and revokes only the logged-out session", async () => {
     const input = account();
     const registered = await app.inject({ method: "POST", url: "/auth/register", payload: input });

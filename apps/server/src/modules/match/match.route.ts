@@ -90,6 +90,11 @@ export async function registerMatchRoutes(app: FastifyInstance, auth: AuthServic
     return reply.status(200).send({ match });
   });
 
+  app.post<{ Params: { roomId: string } }>("/matches/:roomId/fast-ready", async (request, reply) => {
+    const { context, room } = await memberRoom(auth, rooms, request);
+    matches.acquireActiveLock(room, context.user.id, clientIdOf(request));
+    return reply.status(200).send({ match: matches.fastReady(room, actorOf(context)) });
+  });
   app.post<{ Params: { roomId: string } }>("/matches/:roomId/moves", async (request, reply) => {
     const { context, room } = await memberRoom(auth, rooms, request);
     matches.acquireActiveLock(room, context.user.id, clientIdOf(request));

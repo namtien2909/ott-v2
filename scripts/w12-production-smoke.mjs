@@ -1,8 +1,8 @@
 import process from "node:process";
 
-const webUrl = (process.env.W12_WEB_URL || "http://127.0.0.1:4173").replace(/\/$/, "");
-const apiUrl = (process.env.W12_API_URL || "http://127.0.0.1:3001").replace(/\/$/, "");
-const webOrigin = process.env.W12_WEB_ORIGIN || "http://localhost:3000";
+const webUrl = (process.env.W12_WEB_URL || process.env.W12_API_URL || "http://127.0.0.1:3001").replace(/\/$/, "");
+const apiUrl = (process.env.W12_API_URL || webUrl).replace(/\/$/, "");
+const webOrigin = process.env.W12_WEB_ORIGIN || process.env.W12_WEB_URL || "http://localhost:3000";
 const timeout = 10_000;
 
 const canonicalRoutes = [
@@ -36,7 +36,7 @@ function assert(condition, message) {
 
 const webResults = [];
 for (const route of canonicalRoutes) {
-  const response = await request(`${webUrl}${route}`);
+  const response = await request(`${webUrl}${route}`, { headers: { Accept: "text/html" } });
   const contentType = response.headers.get("content-type") || "";
   assert(response.status === 200, `web ${route}: expected 200, received ${response.status}`);
   assert(contentType.includes("text/html"), `web ${route}: expected HTML, received ${contentType}`);

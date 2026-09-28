@@ -1,6 +1,7 @@
 import type { PrismaClient, Session, User, UserProfile, UserStats } from "@prisma/client";
 import type {
   ChangePasswordRequest,
+  AvatarPreset,
   LoginRequest,
   ProfilePatchRequest,
   RecoverRequest,
@@ -23,12 +24,14 @@ export type SelfProfile = {
   displayName: string;
   username: string;
   theme: "light" | "dark" | "system";
+  avatarPreset: AvatarPreset;
   stats: { elo: number; rankedWins: number; rankedLosses: number; quickWins: number; quickLosses: number };
 };
 
 export type PublicProfile = {
   username: string;
   displayName: string;
+  avatarPreset: AvatarPreset;
   stats: { elo: number; rankedWins: number; rankedLosses: number; quickWins: number; quickLosses: number };
 };
 
@@ -44,6 +47,10 @@ function themeOf(profile: UserProfile | null): "light" | "dark" | "system" {
   return profile?.theme === "light" || profile?.theme === "dark" ? profile.theme : "system";
 }
 
+function avatarOf(profile: UserProfile | null): AvatarPreset {
+  return profile?.avatarPreset === "wolf" || profile?.avatarPreset === "fox" || profile?.avatarPreset === "panda" || profile?.avatarPreset === "arena" ? profile.avatarPreset : "robot";
+}
+
 function statsOf(stats: UserStats | null) {
   return {
     elo: stats?.elo ?? 1000,
@@ -55,11 +62,11 @@ function statsOf(stats: UserStats | null) {
 }
 
 function toSelf(user: UserWithData): SelfProfile {
-  return { id: user.id, fullName: user.fullName, displayName: user.displayName, username: user.username, theme: themeOf(user.profile), stats: statsOf(user.stats) };
+  return { id: user.id, fullName: user.fullName, displayName: user.displayName, username: user.username, theme: themeOf(user.profile), avatarPreset: avatarOf(user.profile), stats: statsOf(user.stats) };
 }
 
 function toPublic(user: UserWithData): PublicProfile {
-  return { username: user.username, displayName: user.displayName, stats: statsOf(user.stats) };
+  return { username: user.username, displayName: user.displayName, avatarPreset: avatarOf(user.profile), stats: statsOf(user.stats) };
 }
 
 function unavailable(): never {
@@ -176,7 +183,7 @@ export class AuthService {
   async updateProfile(context: AuthContext, input: ProfilePatchRequest): Promise<SelfProfile> {
     const db = this.requireDb();
     await db.user.update({ where: { id: context.user.id }, data: { ...(input.fullName !== undefined ? { fullName: input.fullName.trim() } : {}), ...(input.displayName !== undefined ? { displayName: input.displayName.trim() } : {}) } });
-    if (input.theme !== undefined) await db.userProfile.upsert({ where: { userId: context.user.id }, create: { userId: context.user.id, theme: input.theme }, update: { theme: input.theme } });
+    if (input.theme !== undefined || input.avatarPreset !== undefined) await db.userProfile.upsert({ where: { userId: context.user.id }, create: { userId: context.user.id, ...(input.theme !== undefined ? { theme: input.theme } : {}), ...(input.avatarPreset !== undefined ? { avatarPreset: input.avatarPreset } : {}) }, update: { ...(input.theme !== undefined ? { theme: input.theme } : {}), ...(input.avatarPreset !== undefined ? { avatarPreset: input.avatarPreset } : {}) } });
     const user = await db.user.findUniqueOrThrow({ where: { id: context.user.id }, include: includeData });
     return toSelf(user);
   }

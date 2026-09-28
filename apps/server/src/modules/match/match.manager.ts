@@ -25,6 +25,7 @@ type MatchState = {
   winner: Side | null;
   rating: MatchRating | null;
   rematchRequests: Set<string>;
+  fastReadyUsers: Set<string>;
 };
 
 type MatchListener = (envelope: MatchEventEnvelope) => void;
@@ -69,6 +70,7 @@ export class MatchManager {
         winner: null,
         rating: null,
         rematchRequests: new Set(),
+        fastReadyUsers: new Set(),
       };
       this.matches.set(room.roomId, match);
     }
@@ -189,17 +191,29 @@ export class MatchManager {
     const player = this.player(match, actor.userId);
     if (match.status !== "WAITING_READY" && match.status !== "COUNTDOWN") throw this.invalidState("ready", match.status);
     player.ready = ready;
-    if (!ready) { match.status = "WAITING_READY"; match.countdownEndsAt = null; match.turnStartedAt = null; }
+    if (!ready) { match.status = "WAITING_READY"; match.countdownEndsAt = null; match.turnStartedAt = null; match.fastReadyUsers.clear(); }
     this.emit(match, "PLAYER_READY");
     if (match.players.length === 2 && match.players.every((item) => item.ready) && match.status === "WAITING_READY") {
       match.status = "COUNTDOWN";
       match.countdownEndsAt = this.now() + 3000;
+      match.fastReadyUsers.clear();
       match.stateVersion += 1;
       this.emit(match, "COUNTDOWN_STARTED");
     }
     return this.snapshot(match);
   }
 
+  fastReady(room: RoomDetail, actor: MatchActor): MatchSnapshot {
+    const match = this.getMatch(room);
+    if (match.status !== "COUNTDOWN") throw this.invalidState("fast-ready", match.status);
+    this.player(match, actor.userId);
+    match.fastReadyUsers.add(actor.userId);
+    if (match.players.length === 2 && match.players.every((player) => match.fastReadyUsers.has(player.userId))) {
+      match.countdownEndsAt = this.now();
+      this.advance(match);
+    }
+    return this.snapshot(match);
+  }
   move(room: RoomDetail, actor: MatchActor, from: Coordinate, to: Coordinate, stateVersion: number): MatchSnapshot {
     const match = this.getMatch(room);
     this.advance(match, true);
@@ -259,6 +273,7 @@ export class MatchManager {
       match.startedAt = null;
       match.endedAt = null;
       match.rematchRequests.clear();
+      match.fastReadyUsers.clear();
       match.players.forEach((item) => { item.ready = false; });
       match.stateVersion = 0;
       this.emit(match, "MATCH_SNAPSHOT");

@@ -19,4 +19,11 @@ export function leaveRoom(roomId: string) {
   return requestJson<void>(`/rooms/${encodeURIComponent(roomId)}/leave`, { method: "POST" });
 }
 
+export function subscribeToRooms(onRooms: (rooms: RoomSummary[]) => void, onError: () => void): () => void {
+  const source = new EventSource(`${env.apiBaseUrl}/rooms/events`, { withCredentials: true });
+  source.onmessage = (message) => { try { const payload = JSON.parse(message.data) as { type?: string; rooms?: RoomSummary[] }; if (payload.type === "ROOMS_SYNC" && Array.isArray(payload.rooms)) onRooms(payload.rooms); } catch { onError(); } };
+  source.onerror = onError;
+  return () => source.close();
+}
+
 export { env };

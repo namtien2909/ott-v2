@@ -6,14 +6,14 @@ const root = resolve(process.cwd());
 const read = (file: string) => readFileSync(resolve(root, file), "utf8");
 
 describe("W12 production deployment contract", () => {
-  it("defines both Render services and the SPA fallback", () => {
+  it("defines one Render service that builds and serves the SPA", () => {
     const blueprint = read("render.yaml");
     expect(blueprint).toContain("name: ottv2-api");
-    expect(blueprint).toContain("name: ottv2-web");
     expect(blueprint).toContain("healthCheckPath: /health");
-    expect(blueprint).toContain("staticPublishPath: apps/web/dist");
-    expect(blueprint).toContain("source: /*");
-    expect(blueprint).toContain("destination: /index.html");
+    expect(blueprint).toContain("corepack pnpm --filter @ottv2/web build");
+    expect(read("apps/server/src/plugins/web-app.ts")).toContain('app.get("/*"');
+    expect(read("apps/server/src/app.ts")).toContain("registerWebApp");
+    expect(blueprint).not.toContain("runtime: static");
     expect(blueprint).toContain("key: DATABASE_URL");
     expect(blueprint).toContain("key: CORS_ORIGINS");
     expect(blueprint).toContain("key: VITE_API_BASE_URL");

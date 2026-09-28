@@ -24,6 +24,7 @@ import { MetricsRegistry } from "./modules/diagnostics/metrics.js";
 import { registerMetricsRoute } from "./modules/diagnostics/metrics.route.js";
 import { registerCors } from "./plugins/cors.js";
 import { registerErrorHandler } from "./plugins/error-handler.js";
+import { registerWebApp } from "./plugins/web-app.js";
 import { PrismaDatabase, type DatabasePort } from "./plugins/prisma.js";
 import { DisabledRealtimeAdapter } from "./realtime/disabled.adapter.js";
 import { PlayHtmlAdapter } from "./realtime/playhtml.adapter.js";
@@ -71,6 +72,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const metrics = options.metrics ?? new MetricsRegistry();
 
   await registerCors(app, env.corsOrigins);
+  await registerWebApp(app);
   registerErrorHandler(app);
   await registerAuthRoutes(app, auth, env);
   await registerProfileRoutes(app, auth);

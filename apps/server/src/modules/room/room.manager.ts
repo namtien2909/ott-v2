@@ -28,8 +28,13 @@ type IdempotencyRecord = { fingerprint: string; roomId: string };
 
 export class RoomManager {
   private readonly rooms = new Map<string, RoomState>();
+  private readonly listeners = new Set<(rooms: RoomSummary[]) => void>();
   private readonly createIdempotency = new Map<string, IdempotencyRecord>();
   private readonly joinIdempotency = new Map<string, IdempotencyRecord>();
+
+  subscribe(listener: (rooms: RoomSummary[]) => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
+
+  private publish(): void { const rooms = this.list(100); for (const listener of this.listeners) listener(rooms); }
 
   async create(actor: RoomActor, input: CreateRoomRequest, idempotencyKey?: string): Promise<RoomDetail> {
     const fingerprint = JSON.stringify(input);
@@ -61,6 +66,7 @@ export class RoomManager {
     };
     this.rooms.set(roomId, room);
     if (idempotencyKey) this.createIdempotency.set(`${actor.userId}:${idempotencyKey}`, { fingerprint, roomId });
+    this.publish();
     return this.serialize(room, actor.userId);
   }
 
@@ -84,12 +90,13 @@ export class RoomManager {
       createdAt: now,
     };
     this.rooms.set(roomId, room);
+    this.publish();
     return this.serialize(room, host.userId);
   }
 
   list(limit = 8): RoomSummary[] {
     return [...this.rooms.values()]
-      .filter((room) => room.visibility === "PUBLIC" && room.status === "WAITING")
+      .filter((room) => room.visibility === "PUBLIC" && room.status === "WAITING" && room.members.length < 2)
       .sort((left, right) => left.createdAt - right.createdAt)
       .slice(0, Math.max(1, Math.min(limit, 100)))
       .map((room) => this.serialize(room, undefined));
@@ -124,12 +131,13 @@ export class RoomManager {
       throw new AppError("CONFLICT", "Phòng đã đạt sức chứa spectator.", 409, false, "INVALID", { reason: "SPECTATOR_CAPACITY", capacity: room.spectatorCapacity });
     }
     room.spectatorIds.add(actor.userId);
+    this.publish();
     return this.serialize(room, undefined, true);
   }
 
   leaveSpectator(roomId: string, userId: string): void {
     const room = this.rooms.get(roomId.trim().toUpperCase());
-    room?.spectatorIds.delete(userId);
+    if (room?.spectatorIds.delete(userId)) this.publish();
   }
 
   isSpectator(roomId: string, userId: string): boolean {
@@ -163,6 +171,7 @@ export class RoomManager {
       throw new AppError("UNAUTHORIZED", "Mật khẩu phòng không đúng.", 401, false, "INVALID");
     }
     room.members.push({ ...actor, joinedAt: Date.now(), isHost: false });
+    this.publish();
     if (idempotencyKey) this.joinIdempotency.set(`${actor.userId}:${idempotencyKey}`, { fingerprint, roomId: normalizedRoomId });
     return this.serialize(room, actor.userId);
   }
@@ -177,11 +186,13 @@ export class RoomManager {
     room.members.splice(index, 1);
     if (room.members.length === 0) {
       this.rooms.delete(normalizedRoomId);
+      this.publish();
       return null;
     }
     if (wasHost) {
       for (const [memberIndex, member] of room.members.entries()) member.isHost = memberIndex === 0;
     }
+    this.publish();
     return this.serialize(room, undefined);
   }
 
@@ -190,6 +201,7 @@ export class RoomManager {
     const room = this.rooms.get(roomId.trim().toUpperCase());
     if (!room) throw new AppError("NOT_FOUND", "Phòng đấu không tồn tại.", 404, false, "INVALID");
     room.status = "PLAYING";
+    this.publish();
   }
 
   size(): number { return this.rooms.size; }

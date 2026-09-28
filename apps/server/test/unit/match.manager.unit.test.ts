@@ -30,6 +30,14 @@ describe("W4 MatchManager", () => {
     expect(events).toContain("MATCH_STARTED");
   });
 
+  it("starts countdown early only after both players fast-ready", async () => {
+    const manager = new MatchManager(() => 2_000);
+    const room = await roomForMatch();
+    manager.ready(room, host, true);
+    manager.ready(room, guest, true);
+    expect(manager.fastReady(room, host).status).toBe("COUNTDOWN");
+    expect(manager.fastReady(room, guest).status).toBe("PLAYING");
+  });
   it("commits only authoritative moves and rejects stale state versions", async () => {
     let now = 2_000;
     const manager = new MatchManager(() => now);
