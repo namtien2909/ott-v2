@@ -5,6 +5,7 @@ import { applyPresentationPreferences } from "./services/presentation/preference
 import { applyDesignTokens } from "./foundation/tokens";
 import { applyQualityTier } from "./foundation/qualityTier";
 import "./styles/globals.css";
+import "./styles/b3-lobby.css";
 
 applyPresentationPreferences();
 applyDesignTokens("dark");

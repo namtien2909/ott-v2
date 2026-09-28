@@ -27,6 +27,7 @@
     "db:status": "corepack pnpm --filter @ottv2/server db:status"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@prisma/client": "^6.19.3",
     "playwright": "^1.55.0",
     "prisma": "^6.19.3",
