@@ -36,6 +36,9 @@ jobs:
       - name: Generate database client
         run: pnpm db:generate
 
+      - name: Build workspace packages
+        run: pnpm build:packages
+
       - name: Typecheck
         run: pnpm typecheck
 
