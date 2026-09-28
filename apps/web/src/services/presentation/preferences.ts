@@ -19,9 +19,26 @@ export function applyPresentationPreferences(): void {
   document.documentElement.dataset.ambientMotion = localStorage.getItem(AMBIENT_MOTION_KEY) === "off" ? "false" : "true";
 }
 
-export type SoundCue = "click" | "matchFound" | "countdown" | "lowTime" | "move" | "capture" | "victory" | "defeat";
+export const SYNTHESIZED_SFX_CUES = [
+  "ui_hover", "ui_click", "ui_confirm", "ui_error", "select", "move", "capture", "goal_warning",
+  "low_time_tick", "match_found", "countdown_tick", "countdown_go", "victory", "defeat", "elo_tick", "rank_up",
+] as const;
+export type SynthesizedSoundCue = typeof SYNTHESIZED_SFX_CUES[number];
+/** Legacy aliases remain supported while all new event producers use the spec names. */
+export type SoundCue = SynthesizedSoundCue | "click" | "matchFound" | "countdown" | "lowTime";
 
-const frequencies: Record<SoundCue, number[]> = { click: [560], matchFound: [440, 660, 880], countdown: [660], lowTime: [880], move: [520], capture: [180, 420], victory: [523, 659, 784], defeat: [330, 262, 196] };
+const cueAliases: Record<Exclude<SoundCue, SynthesizedSoundCue>, SynthesizedSoundCue> = { click: "ui_click", matchFound: "match_found", countdown: "countdown_tick", lowTime: "low_time_tick" };
+const frequencies: Record<SynthesizedSoundCue, number[]> = {
+  ui_hover: [420], ui_click: [560], ui_confirm: [560, 760], ui_error: [150, 110], select: [680], move: [520], capture: [180, 420],
+  goal_warning: [110, 150, 110], low_time_tick: [880], match_found: [440, 660, 880], countdown_tick: [660], countdown_go: [880, 1040],
+  victory: [523, 659, 784], defeat: [330, 262, 196], elo_tick: [740], rank_up: [523, 659, 1046],
+};
+
+export const BGM_TRACKS = { lobby: "/audio/bgm/lobby_loop.wav", match: "/audio/bgm/match_loop.wav" } as const;
+
+function canonicalCue(cue: SoundCue): SynthesizedSoundCue {
+  return cue in cueAliases ? cueAliases[cue as Exclude<SoundCue, SynthesizedSoundCue>] : cue as SynthesizedSoundCue;
+}
 
 let sharedAudioContext: AudioContext | null = null;
 let sharedMasterGain: GainNode | null = null;
@@ -56,25 +73,30 @@ function bgmVolume(): number { return readVolume(BGM_VOLUME_KEY, 30); }
 
 export function playSound(cue: SoundCue): void {
   try {
-    if (localStorage.getItem(SOUND_KEY) === "off" || localStorage.getItem(SFX_KEY) === "off" || (cue === "countdown" && localStorage.getItem(COUNTDOWN_SOUND_KEY) === "off")) return;
+    const normalized = canonicalCue(cue);
+    if (localStorage.getItem(SOUND_KEY) === "off" || localStorage.getItem(SFX_KEY) === "off" || ((normalized === "countdown_tick" || normalized === "countdown_go") && localStorage.getItem(COUNTDOWN_SOUND_KEY) === "off")) return;
     const context = getSharedAudioContext();
     if (!context || !sharedMasterGain) return;
     const masterGain = sharedMasterGain;
     if (context.state === "suspended") void context.resume().catch(() => undefined);
     const now = context.currentTime;
-    frequencies[cue].forEach((frequency, index) => {
+    frequencies[normalized].forEach((frequency, index) => {
       const oscillator = context.createOscillator();
       const gain = context.createGain();
-      oscillator.type = cue === "capture" || cue === "defeat" ? "triangle" : "sine";
+      oscillator.type = normalized === "capture" || normalized === "defeat" || normalized === "ui_error" ? "triangle" : "sine";
       oscillator.frequency.value = frequency;
       const start = now + index * 0.07;
       gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime((cue === "lowTime" ? 0.025 : 0.04) * masterVolume() * sfxVolume(), start + 0.01);
+      gain.gain.exponentialRampToValueAtTime((normalized === "low_time_tick" ? 0.025 : 0.04) * masterVolume() * sfxVolume(), start + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.13);
       oscillator.connect(gain).connect(masterGain);
       oscillator.start(start); oscillator.stop(start + 0.14);
     });
   } catch { /* Audio is optional and must never block UI. */ }
+}
+
+export function notifyAudioPreferenceChanged(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("ottv2:audio-preferences"));
 }
 
 /** BGM is opt-in and lazy. Missing assets/autoplay restrictions are silent. */

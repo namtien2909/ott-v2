@@ -160,7 +160,7 @@ function RequestList({ requests, actionLabel, pendingRequestId, onAction, second
 
 function SocialCard({ user, actions, showPresence = true }: { user: SocialUser; actions: ReactNode; showPresence?: boolean }) {
   const presence = user.presence ?? "OFFLINE";
-  return <article className="social-card"><div className="avatar-mark small" aria-hidden="true">{user.displayName.slice(0, 1).toUpperCase()}</div><div className="social-card-copy"><Link to={`/profile/${encodeURIComponent(user.username)}`}><strong>{user.displayName}</strong></Link><span>@{user.username} · ★ {user.elo}</span>{showPresence && <small className={`presence ${presence.toLowerCase()}`}><i />{presence === "ONLINE" ? "Đang online" : presence === "IN_GAME" ? "Đang chơi" : "Ngoại tuyến"}</small>}<small>{user.rankedWins} thắng · {user.rankedLosses} thua</small></div><div className="social-card-actions">{actions}</div></article>;
+  return <article className="social-card"><div className="avatar-mark small" aria-hidden="true">{user.displayName.slice(0, 1).toUpperCase()}</div><div className="social-card-copy"><Link to={`/profile/${encodeURIComponent(user.username)}`}><strong>{user.displayName}</strong></Link><span>@{user.username} · Elo {user.elo}</span>{showPresence && <small className={`presence ${presence.toLowerCase()}`}><i />{presence === "ONLINE" ? "Đang online" : presence === "IN_GAME" ? "Đang chơi" : "Ngoại tuyến"}</small>}<small>{user.rankedWins} thắng · {user.rankedLosses} thua</small></div><div className="social-card-actions">{actions}</div></article>;
 }
 
 function EmptySocial({ title, copy }: { title: string; copy: string }) { return <div className="social-empty"><p className="eyebrow">TRỐNG</p><h2>{title}</h2><p>{copy}</p></div>; }

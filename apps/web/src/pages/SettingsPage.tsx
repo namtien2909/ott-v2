@@ -6,7 +6,7 @@ import { routes } from "../app/routes";
 import { changePassword, getMe, updateProfile, type UserProfile } from "../services/auth/authApi";
 import { ApiError } from "../services/http/apiError";
 import { useTheme } from "../theme/useTheme";
-import { applyPresentationPreferences, BGM_KEY, BGM_VOLUME_KEY, COUNTDOWN_SOUND_KEY, MASTER_VOLUME_KEY, readAudioPreference, SFX_KEY, SFX_VOLUME_KEY, SOUND_KEY } from "../services/presentation/preferences";
+import { applyPresentationPreferences, BGM_KEY, BGM_VOLUME_KEY, COUNTDOWN_SOUND_KEY, MASTER_VOLUME_KEY, notifyAudioPreferenceChanged, readAudioPreference, SFX_KEY, SFX_VOLUME_KEY, SOUND_KEY } from "../services/presentation/preferences";
 import { getBlockedUsers, unblockUser } from "../services/social/socialApi";
 import { ProfileForm } from "../components/profile/ProfileForm";
 import { applyQualityPreference, readQualityPreference, type QualityPreference } from "../foundation/qualityTier";
@@ -112,6 +112,7 @@ export default function SettingsPage() {
     else if (key === "master-volume") { setMasterVolume(Number(value)); localStorage.setItem(MASTER_VOLUME_KEY, String(value)); }
     else if (key === "sfx-volume") { setSfxVolume(Number(value)); localStorage.setItem(SFX_VOLUME_KEY, String(value)); }
     else { setBgmVolume(Number(value)); localStorage.setItem(BGM_VOLUME_KEY, String(value)); }
+    notifyAudioPreferenceChanged();
     setMessage("Đã lưu tuỳ chọn âm thanh.");
   };
 

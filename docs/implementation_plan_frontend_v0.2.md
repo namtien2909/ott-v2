@@ -686,3 +686,14 @@ Chỉ release khi:
 
 Chỉ khi Wave B14 pass mới được tuyên bố **100% frontend/UI/UX v0.2**.
 
+### Wave B14 execution evidence (đã thực thi)
+
+Chi tiết: [B14_RELEASE_GATE.md](B14_RELEASE_GATE.md).
+
+- [x] Production release gate audits route inventory, canonical a1/i9 setup, vector-only UI decoration and forbidden WebGL/video.
+- [x] All 16 06B synthesized SFX cues are present behind one shared lazy AudioContext; BGM is opt-in, lazy, attributed and budgeted.
+- [x] Initial JS 129.7 KB gzip, total JS 184.9 KB gzip, VFX/audio source 8.3 KB gzip, BGM 689.1 KB total.
+- [x] B14 route/theme/motion/audio Playwright matrix passes; existing full frontend E2E remains green.
+- [x] `release:gate` is wired into CI immediately after production build.
+- [ ] Physical Safari iOS/Chrome Android trace and independent human BA/QA attachment remain release-ticket activities; automated gate is READY FOR RELEASE.
+

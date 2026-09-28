@@ -20,6 +20,8 @@
     "test:integration": "vitest run tests/integration",
     "test:e2e": "playwright test",
     "test:load": "k6 run tests/load/smoke.js",
+    "generate:audio": "node scripts/generate-bgm.mjs",
+    "release:gate": "node scripts/b14-release-gate.mjs",
     "smoke:production": "node scripts/w12-production-smoke.mjs",
     "db:generate": "corepack pnpm --filter @ottv2/server db:generate",
     "db:migrate": "corepack pnpm --filter @ottv2/server db:migrate",

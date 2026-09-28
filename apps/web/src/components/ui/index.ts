@@ -6,3 +6,5 @@ export * from "./Spinner";
 export * from "./ThemeSwitcher";
 export * from "./Toast";
 export * from "./ToastProvider";
+export * from "./UiGlyph";
+export * from "./AvatarGlyph";
