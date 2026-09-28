@@ -52,6 +52,9 @@ jobs:
       - name: Generate database client
         run: pnpm db:generate
 
+      - name: Prepare CI database environment
+        run: printf 'DATABASE_URL=%s\n' "$DATABASE_URL" > .env
+
       - name: Apply database migrations
         run: pnpm db:deploy
 
