@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Button, Modal, ThemeSwitcher } from "../components/ui";
 import { routes } from "../app/routes";
-import { getHealth } from "../services/health/healthApi";
+import { getHealth, isCoreServiceReady } from "../services/health/healthApi";
 import { getMe, logout, type UserProfile } from "../services/auth/authApi";
 
 export function AppLayout() {
@@ -15,7 +15,7 @@ export function AppLayout() {
 
   useEffect(() => {
     let active = true;
-    const check = () => getHealth().then((health) => { if (active) setNetwork(health.status === "ok" ? "online" : "degraded"); }).catch(() => { if (active) setNetwork("offline"); });
+    const check = () => getHealth().then((health) => { if (active) setNetwork(isCoreServiceReady(health) ? "online" : "degraded"); }).catch(() => { if (active) setNetwork("offline"); });
     check();
     const timer = window.setInterval(check, 30000);
     getMe().then((result) => { if (active) setUser(result.user); }).catch(() => { if (active) setUser(null); });

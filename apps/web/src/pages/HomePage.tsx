@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import type { HealthResponse } from "@ottv2/contracts";
 import { Button, LoadingState } from "../components/ui";
-import { getHealth } from "../services/health/healthApi";
+import { getHealth, isCoreServiceReady } from "../services/health/healthApi";
 import { RoomBrowser } from "../components/rooms/RoomBrowser";
 import { getMe, type UserProfile } from "../services/auth/authApi";
 import { routes } from "../app/routes";
@@ -32,7 +32,7 @@ export default function HomePage() {
       </section>
       <div className="health-card" aria-live="polite">
         {health.kind === "loading" && <LoadingState label="Đang kiểm tra máy chủ…" />}
-        {health.kind === "ready" && <><span className="status-dot success" /><strong>Máy chủ sẵn sàng</strong><small>{health.data.service} · {health.data.status}</small></>}
+        {health.kind === "ready" && <><span className={`status-dot ${isCoreServiceReady(health.data) ? "success" : "danger"}`} /><strong>{isCoreServiceReady(health.data) ? "Máy chủ sẵn sàng" : "Dịch vụ đang suy giảm"}</strong><small>{isCoreServiceReady(health.data) && health.data.components.realtime.status !== "ok" ? "API + Database OK · Realtime chưa cấu hình" : `${health.data.service} · ${health.data.status}`}</small></>}
         {health.kind === "error" && <><span className="status-dot danger" /><strong>Không thể kết nối máy chủ</strong><Button variant="secondary" onClick={() => setAttempt((value) => value + 1)}>Thử lại</Button></>}
       </div>
 
