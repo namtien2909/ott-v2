@@ -110,6 +110,70 @@ describe("W2 auth/profile flow", () => {
     expect(publicProfile).not.toHaveProperty("recoveryCodeHash");
   });
 
+  it("exposes relationship data while keeping presence private from non-friends", async () => {
+    const viewerInput = account();
+    const targetInput = account();
+    const viewerRegistration = await app.inject({ method: "POST", url: "/auth/register", payload: viewerInput });
+    const targetRegistration = await app.inject({ method: "POST", url: "/auth/register", payload: targetInput });
+    const viewerCookie = sessionCookie(viewerRegistration);
+    const targetCookie = sessionCookie(targetRegistration);
+    const targetId = targetRegistration.json().user.id as string;
+
+    const anonymous = await app.inject({ method: "GET", url: `/profiles/${targetInput.username}` });
+    expect(anonymous.statusCode).toBe(200);
+    expect(anonymous.json().profile).toMatchObject({ userId: targetId, friendCount: 0, recentForm: [], isFriend: false, requestStatus: null });
+    expect(anonymous.json().profile).not.toHaveProperty("presence");
+
+    const sent = await app.inject({ method: "POST", url: `/social/requests/${targetId}`, headers: { cookie: viewerCookie } });
+    expect(sent.statusCode).toBe(201);
+    const requestId = sent.json().requestId as string;
+    expect((await app.inject({ method: "POST", url: `/social/requests/${requestId}/accept`, headers: { cookie: targetCookie } })).statusCode).toBe(204);
+    await app.inject({ method: "GET", url: "/social/friends", headers: { cookie: targetCookie } });
+
+    const friendView = await app.inject({ method: "GET", url: `/profiles/${targetInput.username}`, headers: { cookie: viewerCookie } });
+    expect(friendView.statusCode).toBe(200);
+    expect(friendView.json().profile).toMatchObject({ isFriend: true, friendCount: 1, presence: "ONLINE" });
+  });
+
+  it("persists presence privacy and enforces block/unblock in both directions", async () => {
+    const viewerInput = account();
+    const targetInput = account();
+    const viewerRegistration = await app.inject({ method: "POST", url: "/auth/register", payload: viewerInput });
+    const targetRegistration = await app.inject({ method: "POST", url: "/auth/register", payload: targetInput });
+    const viewerCookie = sessionCookie(viewerRegistration);
+    const targetCookie = sessionCookie(targetRegistration);
+    const targetId = targetRegistration.json().user.id as string;
+    const viewerId = viewerRegistration.json().user.id as string;
+
+    const hidden = await app.inject({ method: "PATCH", url: "/profiles/me", headers: { cookie: targetCookie }, payload: { presenceVisibility: "NOBODY" } });
+    expect(hidden.statusCode).toBe(200);
+    expect(hidden.json().user.privacy.presenceVisibility).toBe("NOBODY");
+    const hiddenSearch = await app.inject({ method: "GET", url: `/social/search?q=${targetInput.username}`, headers: { cookie: viewerCookie } });
+    expect(hiddenSearch.json().results[0]).not.toHaveProperty("presence");
+
+    const sent = await app.inject({ method: "POST", url: `/social/requests/${targetId}`, headers: { cookie: viewerCookie } });
+    const requestId = sent.json().requestId as string;
+    await app.inject({ method: "POST", url: `/social/requests/${requestId}/accept`, headers: { cookie: targetCookie } });
+    await app.inject({ method: "GET", url: "/social/friends", headers: { cookie: targetCookie } });
+    const hiddenFriendView = await app.inject({ method: "GET", url: `/profiles/${targetInput.username}`, headers: { cookie: viewerCookie } });
+    expect(hiddenFriendView.json().profile).toMatchObject({ isFriend: true });
+    expect(hiddenFriendView.json().profile).not.toHaveProperty("presence");
+
+    const unhidden = await app.inject({ method: "PATCH", url: "/profiles/me", headers: { cookie: targetCookie }, payload: { presenceVisibility: "FRIENDS" } });
+    expect(unhidden.json().user.privacy.presenceVisibility).toBe("FRIENDS");
+    const visibleFriendView = await app.inject({ method: "GET", url: `/profiles/${targetInput.username}`, headers: { cookie: viewerCookie } });
+    expect(visibleFriendView.json().profile).toHaveProperty("presence");
+
+    expect((await app.inject({ method: "POST", url: `/social/blocks/${targetId}`, headers: { cookie: viewerCookie } })).statusCode).toBe(204);
+    expect((await app.inject({ method: "GET", url: `/social/search?q=${viewerInput.username}`, headers: { cookie: targetCookie } })).json().results).toHaveLength(0);
+    expect((await app.inject({ method: "POST", url: `/social/requests/${viewerId}`, headers: { cookie: targetCookie } })).statusCode).toBe(403);
+    const blockedProfile = await app.inject({ method: "GET", url: `/profiles/${targetInput.username}`, headers: { cookie: viewerCookie } });
+    expect(blockedProfile.json().profile).toMatchObject({ isFriend: false, requestStatus: null });
+
+    expect((await app.inject({ method: "DELETE", url: `/social/blocks/${targetId}`, headers: { cookie: viewerCookie } })).statusCode).toBe(204);
+    expect((await app.inject({ method: "GET", url: `/social/search?q=${targetInput.username}`, headers: { cookie: viewerCookie } })).json().results).toHaveLength(1);
+  });
+
   it("keeps the current session on password change and progressively throttles failures", async () => {
     const input = account();
     const registered = await app.inject({ method: "POST", url: "/auth/register", payload: input });

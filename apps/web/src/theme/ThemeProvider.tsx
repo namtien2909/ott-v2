@@ -2,6 +2,7 @@
 import { createContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { readStoredTheme, storeTheme } from "./theme.storage";
 import type { ResolvedTheme, ThemeChoice } from "./theme.types";
+import { applyDesignTokens } from "../foundation/tokens";
 
 interface ThemeContextValue {
   theme: ThemeChoice;
@@ -29,6 +30,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     document.documentElement.dataset.theme = resolvedTheme;
     document.documentElement.style.colorScheme = resolvedTheme;
+    applyDesignTokens(resolvedTheme);
   }, [resolvedTheme]);
 
   const value = useMemo<ThemeContextValue>(() => ({

@@ -66,15 +66,17 @@ describe("OTTv2 W1 game rules", () => {
     const pieces = Object.values(state.board).filter((piece): piece is Piece => piece !== null);
     expect(BOARD_COORDINATES).toHaveLength(81);
     expect(pieces).toHaveLength(18);
-    expect(state.board.a1).toBeNull();
-    expect(state.board.i9).toBeNull();
+    expect(state.board.a1).toMatchObject({ id: "blue-s-3", side: "BLUE", type: "S" });
+    expect(state.board.i9).toMatchObject({ id: "red-s-3", side: "RED", type: "S" });
+    expect(state.board.a2).toBeNull();
+    expect(state.board.i8).toBeNull();
     expect(state.pieceCounts).toEqual({
       BLUE: { R: 3, P: 3, S: 3 },
       RED: { R: 3, P: 3, S: 3 },
     });
     expect(state.currentTurn).toBe("BLUE");
     expect(state.board.b1).toMatchObject({ id: "blue-r-1", side: "BLUE", type: "R" });
-    expect(state.board.i8).toMatchObject({ id: "red-s-3", side: "RED", type: "S" });
+    expect(state.board.i9).toMatchObject({ id: "red-s-3", side: "RED", type: "S" });
   });
 
   it("keeps setup deterministic and exposes the 180 degree coordinate mapping", () => {

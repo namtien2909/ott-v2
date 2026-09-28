@@ -2,8 +2,11 @@ import type { CreateRoomRequest, JoinRoomRequest, RoomDetail, RoomSummary } from
 import { env } from "../../config/env";
 import { getJson, requestJson } from "../http/httpClient";
 
-export function getRooms(search?: string) {
-  const query = search?.trim() ? `?search=${encodeURIComponent(search.trim())}` : "";
+export function getRooms(search?: string, limit = 100) {
+  const params = new URLSearchParams();
+  if (search?.trim()) params.set("search", search.trim());
+  if (!search?.trim()) params.set("limit", String(limit));
+  const query = params.toString() ? `?${params.toString()}` : "";
   return getJson(`/rooms${query}`) as Promise<{ rooms: Array<RoomSummary | RoomDetail> }>;
 }
 

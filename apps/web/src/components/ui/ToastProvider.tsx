@@ -1,17 +1,17 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
-import { Toast, type ToastItem, type ToastVariant } from "./Toast";
+import { Toast, type ToastAction, type ToastItem, type ToastVariant } from "./Toast";
 
-interface ToastContextValue { notify: (message: string, variant?: ToastVariant, duration?: number) => void }
+interface ToastContextValue { notify: (message: string, variant?: ToastVariant, duration?: number, action?: ToastAction) => void }
 const ToastContext = createContext<ToastContextValue | null>(null);
-const MAX_TOASTS = 4;
+const MAX_TOASTS = 3;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const dismiss = useCallback((id: string) => setToasts((items) => items.filter((item) => item.id !== id)), []);
-  const notify = useCallback((message: string, variant: ToastVariant = "info", duration = 4000) => {
+  const notify = useCallback((message: string, variant: ToastVariant = "info", duration = 4000, action?: ToastAction) => {
     const id = crypto.randomUUID();
-    setToasts((items) => [...items.slice(-(MAX_TOASTS - 1)), { id, message, variant, duration }]);
+    setToasts((items) => [...items.slice(-(MAX_TOASTS - 1)), { id, message, variant, duration, action }]);
     window.setTimeout(() => dismiss(id), duration);
   }, [dismiss]);
   const value = useMemo(() => ({ notify }), [notify]);

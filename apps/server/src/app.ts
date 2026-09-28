@@ -75,7 +75,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerWebApp(app);
   registerErrorHandler(app);
   await registerAuthRoutes(app, auth, env);
-  await registerProfileRoutes(app, auth);
+  await registerProfileRoutes(app, auth, social);
   await registerRoomRoutes(app, auth, rooms);
   await registerMatchRoutes(app, auth, rooms, matches, rating, history, metrics);
   await registerMatchmakingRoutes(app, auth, matchmaking);

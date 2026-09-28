@@ -6,13 +6,13 @@ type SetupEntry = readonly [coordinate: string, type: PieceType];
 const BLUE_SETUP: readonly SetupEntry[] = [
   ["b1", "R"], ["c1", "P"], ["d1", "S"],
   ["e1", "R"], ["f1", "P"], ["g1", "S"],
-  ["h1", "R"], ["i1", "P"], ["a2", "S"],
+  ["h1", "R"], ["i1", "P"], ["a1", "S"],
 ];
 
 const RED_SETUP: readonly SetupEntry[] = [
   ["a9", "P"], ["b9", "R"], ["c9", "S"],
   ["d9", "P"], ["e9", "R"], ["f9", "S"],
-  ["g9", "P"], ["h9", "R"], ["i8", "S"],
+  ["g9", "P"], ["h9", "R"], ["i9", "S"],
 ];
 
 function emptyBoard(): Record<string, Piece | null> {

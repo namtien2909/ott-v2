@@ -37,6 +37,9 @@ model UserProfile {
   userId    String   @unique
   theme     String   @default("system")
   avatarPreset String @default("robot")
+  presenceVisibility String @default("FRIENDS")
+  friendListVisibility String @default("PRIVATE")
+  fullNameVisibility String @default("PRIVATE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -95,6 +98,7 @@ model Match {
   startedAt       DateTime?
   endedAt         DateTime?
   durationSeconds Int?
+  finalBoard     Json?
   createdAt       DateTime       @default(now())
   players         MatchPlayer[]
 

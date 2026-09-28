@@ -6,12 +6,14 @@ import { getHealth, isCoreServiceReady } from "../services/health/healthApi";
 import { RoomBrowser } from "../components/rooms/RoomBrowser";
 import { getMe, type UserProfile } from "../services/auth/authApi";
 import { routes } from "../app/routes";
+import { FriendsPreview } from "../components/social/FriendsPreview";
 
 type HealthState = { kind: "loading" } | { kind: "ready"; data: HealthResponse } | { kind: "error" };
 
 export default function HomePage() {
   const [health, setHealth] = useState<HealthState>({ kind: "loading" });
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [authResolved, setAuthResolved] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
@@ -23,12 +25,12 @@ export default function HomePage() {
       });
     return () => controller.abort();
   }, [attempt]);
-  useEffect(() => { getMe().then((result) => setUser(result.user)).catch(() => setUser(null)); }, []);
+  useEffect(() => { getMe().then((result) => setUser(result.user)).catch(() => setUser(null)).finally(() => setAuthResolved(true)); }, []);
 
   return (
     <div className="home-page">
       <section className="home-hero">
-        <div className="home-hero-copy"><p className="eyebrow">ĐẤU TRÍ · ĐỌC VỊ · CHIẾM BÀN</p><h1>Oẳn Tù Tì <span>v2</span></h1><p>{user ? `Chào ${user.displayName}. Tìm đối thủ Ranked hoặc mở phòng Unranked theo ý bạn.` : "Nền tảng chiến thuật 9×9 — online khi cần, local khi muốn."}</p><div className="quick-actions"><Link className="quick-action primary" to={user ? routes.queue : routes.login}><span aria-hidden="true">⚔</span><strong>Chơi 1vs1 Online</strong><small>{user ? "Tìm trận Ranked ngay" : "Đăng nhập để chơi Ranked"}</small></Link><Link className="quick-action" to={routes.ai}><span aria-hidden="true">◉</span><strong>Chơi với máy</strong><small>AI Normal · không cần mạng</small></Link><Link className="quick-action" to={routes.offline}><span aria-hidden="true">⌁</span><strong>Chơi Offline</strong><small>Hai người trên một máy</small></Link><Link className="quick-action" to={routes.guest}><span aria-hidden="true">◌</span><strong>Chơi Guest</strong><small>Lưu lịch sử local</small></Link></div>{!user && <div className="guest-warning" role="status"><strong>Đang xem với tư cách khách</strong><span>Lịch sử của khách chỉ lưu trên thiết bị này. Tạo tài khoản để lưu tiến trình.</span><Link className="button secondary" to={routes.login}>Đăng nhập</Link></div>}</div><div className="hero-art" aria-hidden="true"><div className="hero-orb orb-blue" /><div className="hero-orb orb-red" /><div className="hero-symbol">✊<span>✌</span></div></div>
+        <div className="home-hero-copy"><p className="eyebrow">ĐẤU TRÍ · ĐỌC VỊ · CHIẾM BÀN</p><h1>Oẳn Tù Tì <span>v2</span></h1><p>{user ? `Chào ${user.displayName}. Tìm đối thủ xếp hạng hoặc mở phòng thường theo ý bạn.` : "Nền tảng chiến thuật 9×9 — online khi cần, local khi muốn."}</p><div className="quick-actions"><Link className="quick-action primary" to={user ? routes.queue : routes.login}><span aria-hidden="true">⚔</span><strong>Chơi 1vs1 Online</strong><small>{user ? "Tìm trận xếp hạng ngay" : "Đăng nhập để chơi xếp hạng"}</small></Link><Link className="quick-action" to={routes.ai}><span aria-hidden="true">◉</span><strong>Chơi với máy</strong><small>Bot bình thường · không cần mạng</small></Link><Link className="quick-action" to={routes.offline}><span aria-hidden="true">⌁</span><strong>Chơi ngoại tuyến</strong><small>Hai người trên một máy</small></Link><Link className="quick-action" to={routes.guest}><span aria-hidden="true">◌</span><strong>Chơi khách</strong><small>Lưu lịch sử trên thiết bị</small></Link></div>{!user && <div className="guest-warning" role="status"><strong>Đang xem với tư cách khách</strong><span>Lịch sử của khách chỉ lưu trên thiết bị này. Tạo tài khoản để lưu tiến trình.</span><Link className="button secondary" to={routes.login}>Đăng nhập</Link></div>}</div><div className="hero-art" aria-hidden="true"><div className="hero-orb orb-blue" /><div className="hero-orb orb-red" /><div className="hero-symbol">✊<span>✌</span></div></div>
       </section>
       <div className="health-card" aria-live="polite">
         {health.kind === "loading" && <LoadingState label="Đang kiểm tra máy chủ…" />}
@@ -37,6 +39,7 @@ export default function HomePage() {
       </div>
 
       <RoomBrowser />
+      {authResolved && user && <FriendsPreview />}
     </div>
   );
 }

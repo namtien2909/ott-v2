@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import type { HistoryListResponse, HistoryMatchCard, HistoryQuery, HistoryDetailResponse, MatchSnapshot } from "@ottv2/contracts";
+import { MatchBoardSchema, type HistoryListResponse, type HistoryMatchCard, type HistoryQuery, type HistoryDetailResponse, type MatchSnapshot } from "@ottv2/contracts";
 
 import { AppError } from "../../shared/errors/app-error.js";
 
@@ -56,6 +56,7 @@ export function toHistoryCard(row: HistoryRow, viewerId: string): HistoryMatchCa
     endedAt: endedAt.toISOString(),
     durationSeconds,
     ratingDelta: viewer.ratingDelta,
+    finalBoard: MatchBoardSchema.safeParse(row.finalBoard).success ? MatchBoardSchema.parse(row.finalBoard) : null,
   };
 }
 
@@ -73,6 +74,7 @@ export function toMatchProjection(match: MatchSnapshot): Prisma.MatchCreateInput
     startedAt,
     endedAt,
     durationSeconds: startedAt ? Math.max(0, Math.round((endedAt.getTime() - startedAt.getTime()) / 1000)) : 0,
+    finalBoard: match.board,
     players: {
       create: match.players.map((player) => ({
         userId: player.userId,

@@ -8,9 +8,10 @@ describe("GameBoard", () => {
     render(<GameBoard state={createInitialState()} viewSide="BLUE" />);
     expect(screen.getAllByRole("gridcell")).toHaveLength(81);
     expect(screen.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ })).toBeInTheDocument();
-    expect(screen.getByRole("gridcell", { name: /Ô i8, Quân Kéo phe Đỏ/ })).toBeInTheDocument();
-    expect(screen.getByRole("gridcell", { name: /Ô a1, trống/ })).toBeInTheDocument();
-    expect(screen.getByRole("gridcell", { name: /Ô i9, trống/ })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: /Ô a1, Quân Kéo phe Xanh/ })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: /Ô i9, Quân Kéo phe Đỏ/ })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: /Ô a2, trống/ })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: /Ô i8, trống/ })).toBeInTheDocument();
   });
 
   it("keeps canonical labels while showing RED from a 180 degree view", () => {
@@ -18,7 +19,7 @@ describe("GameBoard", () => {
     expect(screen.getAllByRole("gridcell")).toHaveLength(81);
     expect(screen.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ })).toBeInTheDocument();
     expect(screen.getByRole("gridcell", { name: /Ô a9, Quân Bao phe Đỏ/ })).toBeInTheDocument();
-    expect(screen.getByRole("gridcell", { name: /Ô i9, trống/ })).toBeInTheDocument();
+    expect(screen.getByRole("gridcell", { name: /Ô i9, Quân Kéo phe Đỏ/ })).toBeInTheDocument();
   });
 
   it("highlights only local legal destinations without applying a move", () => {
@@ -26,7 +27,8 @@ describe("GameBoard", () => {
     render(<GameBoard state={state} viewSide="BLUE" />);
     fireEvent.click(screen.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ }));
     expect(screen.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("gridcell", { name: /Ô a2, Quân Kéo phe Xanh/ })).toHaveAttribute("data-legal", "false");
+    expect(screen.getByRole("gridcell", { name: /Ô a1, Quân Kéo phe Xanh/ })).toHaveAttribute("data-legal", "false");
+    expect(screen.getByRole("gridcell", { name: /Ô a2, trống/ })).toHaveAttribute("data-legal", "true");
     expect(screen.getByRole("gridcell", { name: /Ô b2, trống/ })).toHaveAttribute("data-legal", "true");
     expect(state.board.b1).toMatchObject({ side: "BLUE", type: "R" });
     expect(state.board.b2).toBeNull();
@@ -36,6 +38,15 @@ describe("GameBoard", () => {
     render(<GameBoard state={createInitialState()} viewSide="BLUE" />);
     fireEvent.click(screen.getByRole("gridcell", { name: /Ô a9, Quân Bao phe Đỏ/ }));
     expect(screen.getByRole("gridcell", { name: /Ô a9, Quân Bao phe Đỏ/ })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("keeps BLUE orientation while allowing RED interaction", () => {
+    const state = { ...createInitialState(), currentTurn: "RED" as const };
+    render(<GameBoard state={state} viewSide="BLUE" interactionSide="RED" />);
+    const redPiece = screen.getByRole("gridcell", { name: /Ô h9, Quân Đấm phe Đỏ/ });
+    fireEvent.click(redPiece);
+    expect(redPiece).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("gridcell", { name: /Ô h8, trống/ })).toHaveAttribute("data-legal", "true");
   });
 
   it("marks both goal cells and exposes a semantic capture target", () => {

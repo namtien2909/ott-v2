@@ -31,6 +31,7 @@ describe("W7 MatchHistoryService", () => {
   it("projects a finished match into a card without turning server interruption into a loss", () => {
     const data = toMatchProjection(snapshot);
     expect(data.id).toBe(snapshot.matchId);
+    expect(data.finalBoard).toEqual(snapshot.board);
     expect(data.players).toMatchObject({ create: expect.arrayContaining([expect.objectContaining({ userId: "u-blue", isWinner: true, ratingDelta: 16 })]) });
     const row = {
       id: snapshot.matchId, roomId: snapshot.roomId, mode: snapshot.mode, status: "FINISHED", resultReason: snapshot.resultReason, winnerSide: snapshot.winner, timerSeconds: 30,
@@ -39,7 +40,7 @@ describe("W7 MatchHistoryService", () => {
         { id: "p2", matchId: snapshot.matchId, userId: "u-red", username: "red", displayName: "Red", side: "RED", isWinner: false, ratingBefore: 1000, ratingAfter: 984, ratingDelta: -16 },
       ],
     };
-    expect(toHistoryCard(row, "u-blue")).toMatchObject({ result: "WIN", durationSeconds: 3, ratingDelta: 16 });
+    expect(toHistoryCard({ ...row, finalBoard: snapshot.board }, "u-blue")).toMatchObject({ result: "WIN", durationSeconds: 3, ratingDelta: 16, finalBoard: snapshot.board });
     expect(toHistoryCard({ ...row, status: "ABORTED", resultReason: "SERVER_INTERRUPTION", winnerSide: null }, "u-blue").result).toBe("ABORTED");
   });
 

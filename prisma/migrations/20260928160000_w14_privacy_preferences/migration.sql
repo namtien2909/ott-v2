@@ -1,0 +1,4 @@
+ALTER TABLE "UserProfile"
+  ADD COLUMN "presenceVisibility" TEXT NOT NULL DEFAULT 'FRIENDS',
+  ADD COLUMN "friendListVisibility" TEXT NOT NULL DEFAULT 'PRIVATE',
+  ADD COLUMN "fullNameVisibility" TEXT NOT NULL DEFAULT 'PRIVATE';

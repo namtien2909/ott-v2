@@ -10,16 +10,12 @@ import {
   type RuleState,
   type Side,
 } from "@ottv2/game-rules";
-
-const PIECE_SYMBOLS = {
-  R: "✊",
-  P: "✋",
-  S: "✌️",
-} as const;
+import { PieceGlyph } from "./PieceGlyph";
 
 export type GameBoardProps = {
   state: RuleState;
   viewSide: Side;
+  interactionSide?: Side | null;
   onMove?: (from: Coordinate, to: Coordinate) => void;
   disabled?: boolean;
 };
@@ -39,30 +35,34 @@ function pieceLabel(piece: Piece | null): string {
   return `Quân ${names[piece.type]} phe ${piece.side === "BLUE" ? "Xanh" : "Đỏ"}`;
 }
 
-export function GameBoard({ state, viewSide, onMove, disabled = false }: GameBoardProps) {
+function sideLabel(side: Side | null): string {
+  return side === "BLUE" ? "Xanh" : side === "RED" ? "Đỏ" : "—";
+}
+
+export function GameBoard({ state, viewSide, interactionSide = viewSide, onMove, disabled = false }: GameBoardProps) {
   const [selectedCoordinate, setSelectedCoordinate] = useState<Coordinate | null>(null);
   const displayCoordinates = useMemo(() => coordinatesForView(viewSide), [viewSide]);
   const displayFiles = viewSide === "RED" ? [...FILES].reverse() : [...FILES];
   const displayRanks = viewSide === "RED" ? [...RANKS] : [...RANKS].reverse();
   const legalDestinations = useMemo(
-    () => selectedCoordinate === null ? [] : getLegalDestinations(state, viewSide, selectedCoordinate),
-    [selectedCoordinate, state, viewSide],
+    () => selectedCoordinate === null || interactionSide === null ? [] : getLegalDestinations(state, interactionSide, selectedCoordinate),
+    [interactionSide, selectedCoordinate, state],
   );
   const legalDestinationSet = useMemo(() => new Set(legalDestinations), [legalDestinations]);
 
   useEffect(() => {
     setSelectedCoordinate(null);
-  }, [state, viewSide]);
+  }, [interactionSide, state, viewSide]);
 
   function handleSquareClick(coordinate: Coordinate): void {
-    if (disabled) return;
+    if (disabled || interactionSide === null) return;
     if (selectedCoordinate !== null && legalDestinationSet.has(coordinate)) {
       onMove?.(selectedCoordinate, coordinate);
       if (onMove) setSelectedCoordinate(null);
       return;
     }
     const piece = state.board[coordinate];
-    if (piece === null || piece.side !== viewSide) {
+    if (piece === null || piece.side !== interactionSide) {
       if (!legalDestinationSet.has(coordinate)) setSelectedCoordinate(null);
       return;
     }
@@ -70,19 +70,19 @@ export function GameBoard({ state, viewSide, onMove, disabled = false }: GameBoa
   }
 
   return (
-    <section className="board-panel" aria-label={`Bàn cờ, góc nhìn ${viewSide}`}>
+    <section className="board-panel" aria-label={`Bàn cờ, góc nhìn phe ${sideLabel(viewSide)}`}>
       <div className="board-panel-header">
         <div>
           <p className="eyebrow">BÀN CỜ CHIẾN THUẬT</p>
           <h2>Bàn cờ 9×9</h2>
         </div>
         <div className={`turn-badge ${state.currentTurn?.toLowerCase() ?? "finished"}`}>
-          {state.status === "FINISHED" ? `Kết thúc · ${state.winner}` : `Lượt ${state.currentTurn}`}
+          {state.status === "FINISHED" ? `Kết thúc · ${sideLabel(state.winner)}` : `Lượt phe ${sideLabel(state.currentTurn)}`}
         </div>
       </div>
       <p className="board-help" aria-live="polite">
         {selectedCoordinate === null
-          ? `Góc nhìn ${viewSide === "BLUE" ? "Xanh" : "Đỏ"}. Chọn quân để xem ô có thể đi.`
+          ? `Góc nhìn phe ${sideLabel(viewSide)}. Chọn quân để xem ô có thể đi.`
           : `Đang chọn ${selectedCoordinate}. Các ô sáng là nước đi hợp lệ.`}
       </p>
       <div className="board-frame">
@@ -94,7 +94,7 @@ export function GameBoard({ state, viewSide, onMove, disabled = false }: GameBoa
               const piece = state.board[coordinate];
               const isSelected = selectedCoordinate === coordinate;
               const isLegalDestination = legalDestinationSet.has(coordinate);
-              const isCapture = isLegalDestination && piece !== null && piece.side !== viewSide;
+              const isCapture = isLegalDestination && piece !== null && piece.side !== interactionSide;
               const goalSide = GOAL_COORDINATES.BLUE === coordinate ? "blue" : GOAL_COORDINATES.RED === coordinate ? "red" : "";
               return (
                 <button
@@ -111,7 +111,7 @@ export function GameBoard({ state, viewSide, onMove, disabled = false }: GameBoa
                   aria-pressed={isSelected}
                 >
                   {goalSide && <span className="goal-marker" aria-hidden="true">◆</span>}
-                  {piece && <span className={`board-piece-token ${piece.side.toLowerCase()}`} aria-hidden="true"><span className="board-piece-symbol">{PIECE_SYMBOLS[piece.type]}</span><span className="board-piece-type">{piece.type}</span></span>}
+                  {piece && <span className={`board-piece-token ${piece.side.toLowerCase()}`} aria-hidden="true"><PieceGlyph type={piece.type} /><span className="board-piece-type">{piece.type}</span></span>}
                   <span className="board-coordinate">{coordinate}</span>
                 </button>
               );
@@ -122,7 +122,7 @@ export function GameBoard({ state, viewSide, onMove, disabled = false }: GameBoa
         <div className="board-axis board-axis-bottom" aria-hidden="true">{displayFiles.map((file) => <span key={`bottom-${file}`}>{file}</span>)}</div>
       </div>
       <div className="board-legend" aria-label="Chú thích quân cờ">
-        <span><b>✊</b> Đấm</span><span><b>✋</b> Bao</span><span><b>✌️</b> Kéo</span>
+        <span><PieceGlyph type="R" size={20} /> Đấm</span><span><PieceGlyph type="P" size={20} /> Bao</span><span><PieceGlyph type="S" size={20} /> Kéo</span>
       </div>
     </section>
   );

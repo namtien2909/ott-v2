@@ -5,6 +5,9 @@ export const FullNameSchema = z.string().trim().min(2).max(50);
 export const DisplayNameSchema = z.string().trim().min(2).max(20);
 export const PasswordSchema = z.string().min(8, "Mật khẩu phải có ít nhất 8 ký tự.");
 export const AvatarPresetSchema = z.enum(["robot", "wolf", "fox", "panda", "arena"]);
+export const PresenceVisibilitySchema = z.enum(["FRIENDS", "NOBODY"]);
+export const FriendListVisibilitySchema = z.literal("PRIVATE");
+export const FullNameVisibilitySchema = z.literal("PRIVATE");
 
 export const RegisterRequestSchema = z.object({
   fullName: FullNameSchema,
@@ -35,6 +38,9 @@ export const ProfilePatchRequestSchema = z.object({
   displayName: DisplayNameSchema.optional(),
   theme: z.enum(["light", "dark", "system"]).optional(),
   avatarPreset: AvatarPresetSchema.optional(),
+  presenceVisibility: PresenceVisibilitySchema.optional(),
+  friendListVisibility: FriendListVisibilitySchema.optional(),
+  fullNameVisibility: FullNameVisibilitySchema.optional(),
 }).strict();
 
 export type RegisterRequest = z.infer<typeof RegisterRequestSchema>;
@@ -43,3 +49,6 @@ export type RecoverRequest = z.infer<typeof RecoverRequestSchema>;
 export type ChangePasswordRequest = z.infer<typeof ChangePasswordRequestSchema>;
 export type ProfilePatchRequest = z.infer<typeof ProfilePatchRequestSchema>;
 export type AvatarPreset = z.infer<typeof AvatarPresetSchema>;
+export type PresenceVisibility = z.infer<typeof PresenceVisibilitySchema>;
+export type FriendListVisibility = z.infer<typeof FriendListVisibilitySchema>;
+export type FullNameVisibility = z.infer<typeof FullNameVisibilitySchema>;

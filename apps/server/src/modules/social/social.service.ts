@@ -6,7 +6,7 @@ import { AppError } from "../../shared/errors/app-error.js";
 import { RoomManager } from "../room/room.manager.js";
 import { PresenceManager, type PresenceUser } from "./presence.manager.js";
 
-type UserRow = Prisma.UserGetPayload<{ include: { stats: true } }>;
+type UserRow = Prisma.UserGetPayload<{ include: { stats: true; profile: true } }>;
 type InviteState = RoomInvite & { targetUserId: string; fromUserId: string; consuming?: boolean };
 
 const INVITE_TTL_MS = 5 * 60 * 1000;
@@ -27,8 +27,15 @@ export class SocialService {
     const db = this.requireDb();
     const rows = await db.friendship.findMany({ where: { OR: [{ userAId: viewerId }, { userBId: viewerId }] } });
     const ids = rows.map((item) => item.userAId === viewerId ? item.userBId : item.userAId);
-    const users = await db.user.findMany({ where: { id: { in: ids } }, include: { stats: true } });
-    return users.map((user) => this.socialUser(user, true, null));
+    const users = await db.user.findMany({ where: { id: { in: ids } }, include: { stats: true, profile: true } });
+    return users.map((user) => this.socialUser(user, true, null, user.profile?.presenceVisibility !== "NOBODY"));
+  }
+
+  async profileRelationship(viewerId: string, targetUserId: string): Promise<{ isFriend: boolean; requestStatus: "PENDING" | null; presence?: SocialUser["presence"] }> {
+    if (await this.isBlocked(viewerId, targetUserId)) return { isFriend: false, requestStatus: null };
+    const isFriend = await this.isFriend(viewerId, targetUserId);
+    const target = await this.requireDb().user.findUnique({ where: { id: targetUserId }, include: { profile: true } });
+    return { isFriend, requestStatus: await this.requestStatus(viewerId, targetUserId), ...(isFriend && target?.profile?.presenceVisibility !== "NOBODY" ? { presence: this.presence.get(targetUserId) } : {}) };
   }
 
   async search(viewerId: string, query: string): Promise<SocialUser[]> {
@@ -37,16 +44,16 @@ export class SocialService {
     if (q.length < 2) return [];
     const blocked = await db.block.findMany({ where: { OR: [{ blockerId: viewerId }, { blockedId: viewerId }] } });
     const blockedIds = blocked.map((item) => item.blockerId === viewerId ? item.blockedId : item.blockerId);
-    const users = await db.user.findMany({ where: { id: { not: viewerId, notIn: blockedIds }, OR: [{ usernameNormalized: { contains: q } }, { displayName: { contains: query.trim(), mode: "insensitive" } }] }, include: { stats: true }, take: 20, orderBy: { usernameNormalized: "asc" } });
-    return Promise.all(users.map(async (user) => this.socialUser(user, await this.isFriend(viewerId, user.id), await this.requestStatus(viewerId, user.id))));
+    const users = await db.user.findMany({ where: { id: { not: viewerId, notIn: blockedIds }, OR: [{ usernameNormalized: { contains: q } }, { displayName: { contains: query.trim(), mode: "insensitive" } }] }, include: { stats: true, profile: true }, take: 20, orderBy: { usernameNormalized: "asc" } });
+    return Promise.all(users.map(async (user) => { const isFriend = await this.isFriend(viewerId, user.id); return this.socialUser(user, isFriend, await this.requestStatus(viewerId, user.id), isFriend && user.profile?.presenceVisibility !== "NOBODY"); }));
   }
 
   async requests(viewerId: string, direction: "incoming" | "sent"): Promise<FriendRequest[]> {
     const db = this.requireDb();
-    const rows = await db.friendRequest.findMany({ where: direction === "incoming" ? { recipientId: viewerId, status: "PENDING" } : { senderId: viewerId, status: "PENDING" }, orderBy: { createdAt: "desc" }, include: { sender: { include: { stats: true } }, recipient: { include: { stats: true } } } });
+    const rows = await db.friendRequest.findMany({ where: direction === "incoming" ? { recipientId: viewerId, status: "PENDING" } : { senderId: viewerId, status: "PENDING" }, orderBy: { createdAt: "desc" }, include: { sender: { include: { stats: true, profile: true } }, recipient: { include: { stats: true, profile: true } } } });
     return rows.map((row) => {
       const user = direction === "incoming" ? row.sender : row.recipient;
-      return { requestId: row.id, user: this.socialUser(user, false, "PENDING"), direction, status: row.status as "PENDING", createdAt: row.createdAt.toISOString() };
+      return { requestId: row.id, user: this.socialUser(user, false, "PENDING", false), direction, status: row.status as "PENDING", createdAt: row.createdAt.toISOString() };
     });
   }
 
@@ -65,8 +72,8 @@ export class SocialService {
       return { friendshipCreated: true };
     }
     if (existing?.status === "PENDING") throw new AppError("CONFLICT", "Lời mời đã được gửi.", 409, false, "INVALID");
-    const row = existing ? await db.friendRequest.update({ where: { id: existing.id }, data: { senderId: viewerId, recipientId: targetUserId, status: "PENDING" }, include: { sender: { include: { stats: true } }, recipient: { include: { stats: true } } } }) : await db.friendRequest.create({ data: { senderId: viewerId, recipientId: targetUserId, pairKey: normalizePair(viewerId, targetUserId) }, include: { sender: { include: { stats: true } }, recipient: { include: { stats: true } } } });
-    return { requestId: row.id, user: this.socialUser(row.recipient, false, "PENDING"), direction: "sent", status: "PENDING", createdAt: row.createdAt.toISOString() };
+    const row = existing ? await db.friendRequest.update({ where: { id: existing.id }, data: { senderId: viewerId, recipientId: targetUserId, status: "PENDING" }, include: { sender: { include: { stats: true, profile: true } }, recipient: { include: { stats: true, profile: true } } } }) : await db.friendRequest.create({ data: { senderId: viewerId, recipientId: targetUserId, pairKey: normalizePair(viewerId, targetUserId) }, include: { sender: { include: { stats: true, profile: true } }, recipient: { include: { stats: true, profile: true } } } });
+    return { requestId: row.id, user: this.socialUser(row.recipient, false, "PENDING", false), direction: "sent", status: "PENDING", createdAt: row.createdAt.toISOString() };
   }
 
   async updateRequest(viewerId: string, requestId: string, action: "accept" | "reject" | "cancel"): Promise<void> {
@@ -100,16 +107,17 @@ export class SocialService {
 
   async blocks(viewerId: string): Promise<BlockedUser[]> {
     const db = this.requireDb();
-    const rows = await db.block.findMany({ where: { blockerId: viewerId }, include: { blocked: { include: { stats: true } } }, orderBy: { createdAt: "desc" } });
-    return rows.map((row) => ({ ...this.socialUser(row.blocked, false, null), blockedAt: row.createdAt.toISOString() }));
+    const rows = await db.block.findMany({ where: { blockerId: viewerId }, include: { blocked: { include: { stats: true, profile: true } } }, orderBy: { createdAt: "desc" } });
+    return rows.map((row) => ({ ...this.socialUser(row.blocked, false, null, false), blockedAt: row.createdAt.toISOString() }));
   }
 
   async subscribePresence(viewerId: string, listener: (event: PresenceEvent) => void): Promise<() => void> {
     const db = this.requireDb();
     const rows = await db.friendship.findMany({ where: { OR: [{ userAId: viewerId }, { userBId: viewerId }] } });
     const ids = rows.map((item) => item.userAId === viewerId ? item.userBId : item.userAId);
-    const users = await db.user.findMany({ where: { id: { in: ids } }, select: { id: true, username: true, displayName: true } });
-    return this.presence.subscribe(viewerId, ids, users.map((user) => ({ userId: user.id, username: user.username, displayName: user.displayName })), listener, this.now());
+    const users = await db.user.findMany({ where: { id: { in: ids } }, include: { profile: true } });
+    const visibleUsers = users.filter((user) => user.profile?.presenceVisibility !== "NOBODY");
+    return this.presence.subscribe(viewerId, visibleUsers.map((user) => user.id), visibleUsers.map((user) => ({ userId: user.id, username: user.username, displayName: user.displayName })), listener, this.now());
   }
 
   async markOnline(userId: string): Promise<void> { const db = this.requireDb(); const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, username: true, displayName: true } }); if (user) this.presence.set({ userId: user.id, username: user.username, displayName: user.displayName }, "ONLINE", this.now()); }
@@ -155,8 +163,9 @@ export class SocialService {
   private async assertUsers(left: string, right: string): Promise<void> { const db = this.requireDb(); const count = await db.user.count({ where: { id: { in: [left, right] } } }); if (count !== 2) throw new AppError("NOT_FOUND", "Người chơi không tồn tại.", 404, false, "INVALID"); }
   private async assertNotBlocked(left: string, right: string): Promise<void> { const db = this.requireDb(); const block = await db.block.findFirst({ where: { OR: [{ blockerId: left, blockedId: right }, { blockerId: right, blockedId: left }] } }); if (block) throw new AppError("UNAUTHORIZED", "Thao tác bị chặn bởi quyền riêng tư.", 403, false, "INVALID"); }
   private async isFriend(left: string, right: string): Promise<boolean> { const db = this.requireDb(); return Boolean(await db.friendship.findUnique({ where: { userAId_userBId: pair(left, right) } })); }
+  private async isBlocked(left: string, right: string): Promise<boolean> { const db = this.requireDb(); return Boolean(await db.block.findFirst({ where: { OR: [{ blockerId: left, blockedId: right }, { blockerId: right, blockedId: left }] } })); }
   private async requestStatus(viewerId: string, targetId: string): Promise<"PENDING" | null> { const db = this.requireDb(); const request = await db.friendRequest.findFirst({ where: { OR: [{ senderId: viewerId, recipientId: targetId }, { senderId: targetId, recipientId: viewerId }], status: "PENDING" } }); return request ? "PENDING" : null; }
-  private socialUser(user: UserRow, isFriend: boolean, requestStatus: "PENDING" | null): SocialUser { return { userId: user.id, username: user.username, displayName: user.displayName, elo: user.stats?.elo ?? 1000, rankedWins: user.stats?.rankedWins ?? 0, rankedLosses: user.stats?.rankedLosses ?? 0, presence: this.presence.get(user.id), isFriend, requestStatus }; }
+  private socialUser(user: UserRow, isFriend: boolean, requestStatus: "PENDING" | null, canSeePresence: boolean): SocialUser { return { userId: user.id, username: user.username, displayName: user.displayName, elo: user.stats?.elo ?? 1000, rankedWins: user.stats?.rankedWins ?? 0, rankedLosses: user.stats?.rankedLosses ?? 0, ...(canSeePresence ? { presence: this.presence.get(user.id) } : {}), isFriend, requestStatus }; }
 }
 
 export { INVITE_TTL_MS };

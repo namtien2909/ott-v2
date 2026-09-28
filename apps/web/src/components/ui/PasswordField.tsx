@@ -8,12 +8,13 @@ type PasswordFieldProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & 
 export function PasswordField({ label, hint, id, ...props }: PasswordFieldProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
+  const hintId = `${inputId}-hint`;
   const [visible, setVisible] = useState(false);
   return (
     <label className="password-field" htmlFor={inputId}>
       <span>{label}</span>
       <span className="password-control">
-        <input {...props} id={inputId} type={visible ? "text" : "password"} />
+        <input {...props} id={inputId} type={visible ? "text" : "password"} aria-describedby={hint ? hintId : props["aria-describedby"]} />
         <button
           type="button"
           className="password-toggle"
@@ -24,7 +25,7 @@ export function PasswordField({ label, hint, id, ...props }: PasswordFieldProps)
           {visible ? "Ẩn" : "Hiện"}
         </button>
       </span>
-      {hint && <small className="field-hint">{hint}</small>}
+      {hint && <small id={hintId} className="field-hint">{hint}</small>}
     </label>
   );
 }

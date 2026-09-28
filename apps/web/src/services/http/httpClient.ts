@@ -7,7 +7,7 @@ function dispatchWindowEvent(name: string, detail?: Record<string, unknown>): vo
 }
 
 function shouldNotifySessionExpiry(path: string): boolean {
-  return !["/auth/login", "/auth/register", "/auth/recover", "/auth/me"].some((prefix) => path.startsWith(prefix));
+  return !["/auth/login", "/auth/register", "/auth/recover", "/auth/me"].some((prefix) => path.startsWith(prefix)) && !path.includes("/spectate") && !path.includes("/spectator");
 }
 
 export async function getJson(path: string, signal?: AbortSignal): Promise<unknown> {

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MatchBoardSchema } from "./match.js";
+
 export const HistoryModeSchema = z.enum(["RANKED", "UNRANKED", "GUEST", "AI", "OFFLINE"]);
 export const HistoryModeFilterSchema = z.enum(["ALL", ...HistoryModeSchema.options]);
 export const HistoryResultFilterSchema = z.enum(["ALL", "WIN", "LOSS"]);
@@ -40,6 +42,7 @@ export const HistoryMatchCardSchema = z.object({
   endedAt: z.string().datetime(),
   durationSeconds: z.number().int().nonnegative(),
   ratingDelta: z.number().int().nullable(),
+  finalBoard: MatchBoardSchema.nullable(),
 });
 
 export const HistorySummarySchema = z.object({

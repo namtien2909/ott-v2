@@ -30,7 +30,7 @@ describe("W4/W5 match contracts", () => {
 
   it("accepts history list projection contracts", () => {
     const player = { userId: "u1", username: "blue", displayName: "Blue", side: "BLUE" as const, isViewer: true, isWinner: true, ratingBefore: 1000, ratingAfter: 1016, ratingDelta: 16 };
-    const card = { matchId: "00000000-0000-4000-8000-000000000001", roomId: "ABC234", mode: "RANKED" as const, status: "FINISHED" as const, result: "WIN" as const, resultReason: "SURRENDER" as const, winner: "BLUE" as const, viewer: player, opponent: { ...player, userId: "u2", username: "red", displayName: "Red", side: "RED" as const, isViewer: false, isWinner: false, ratingBefore: 1000, ratingAfter: 984, ratingDelta: -16 }, timerSeconds: 300, startedAt: new Date(0).toISOString(), endedAt: new Date(1000).toISOString(), durationSeconds: 1, ratingDelta: 16 };
+    const card = { matchId: "00000000-0000-4000-8000-000000000001", roomId: "ABC234", mode: "RANKED" as const, status: "FINISHED" as const, result: "WIN" as const, resultReason: "SURRENDER" as const, winner: "BLUE" as const, viewer: player, opponent: { ...player, userId: "u2", username: "red", displayName: "Red", side: "RED" as const, isViewer: false, isWinner: false, ratingBefore: 1000, ratingAfter: 984, ratingDelta: -16 }, timerSeconds: 300, startedAt: new Date(0).toISOString(), endedAt: new Date(1000).toISOString(), durationSeconds: 1, ratingDelta: 16, finalBoard: null };
     expect(HistoryListResponseSchema.safeParse({ matches: [card], nextCursor: null, hasMore: false, summary: { elo: 1016, wins: 1, losses: 0, total: 1, winRate: 100 } }).success).toBe(true);
   });
 

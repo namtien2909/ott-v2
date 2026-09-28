@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { Button, Modal, ThemeSwitcher } from "../components/ui";
+import { Button, Modal, ThemeSwitcher, useToast } from "../components/ui";
 import { routes } from "../app/routes";
 import { getHealth, isCoreServiceReady } from "../services/health/healthApi";
 import { getMe, logout, type UserProfile } from "../services/auth/authApi";
@@ -8,6 +8,7 @@ import { getMe, logout, type UserProfile } from "../services/auth/authApi";
 export function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { notify } = useToast();
   const isGame = /^\/(?:game|room|phong)\//.test(location.pathname);
   const [network, setNetwork] = useState<"checking" | "online" | "offline" | "reconnecting" | "degraded">("checking");
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -38,8 +39,17 @@ export function AppLayout() {
     };
   }, []);
 
+  useEffect(() => {
+    const onQualityDowngrade = (event: Event) => {
+      const detail = (event as CustomEvent<{ from?: string; to?: string }>).detail;
+      notify(`Hiệu năng giảm từ ${detail.from ?? "auto"} xuống ${detail.to ?? "thấp hơn"}.`, "warning", 8000, { label: "Mở cài đặt", onClick: () => navigate(`${routes.settings}?tab=appearance`) });
+    };
+    window.addEventListener("ottv2:quality-downgrade", onQualityDowngrade);
+    return () => window.removeEventListener("ottv2:quality-downgrade", onQualityDowngrade);
+  }, [navigate, notify]);
+
   const signOut = async () => { await logout().catch(() => undefined); setUser(null); navigate(routes.login); };
-  const networkLabel = network === "online" ? "Online" : network === "offline" ? "Offline" : network === "degraded" ? "Degraded" : network === "reconnecting" ? "Reconnecting" : "…";
+  const networkLabel = network === "online" ? "Đã kết nối" : network === "offline" ? "Mất kết nối" : network === "degraded" ? "Dịch vụ suy giảm" : network === "reconnecting" ? "Đang kết nối lại" : "Đang kiểm tra…";
 
   return <div className={`app-shell ${isGame ? "game-shell" : ""}`}>
     {!isGame && <header className="app-header">

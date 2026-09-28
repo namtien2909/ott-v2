@@ -11,7 +11,7 @@ export const SocialUserSchema = z.object({
   elo: z.number().int().nonnegative(),
   rankedWins: z.number().int().nonnegative(),
   rankedLosses: z.number().int().nonnegative(),
-  presence: PresenceStatusSchema,
+  presence: PresenceStatusSchema.optional(),
   isFriend: z.boolean(),
   requestStatus: FriendRequestStatusSchema.nullable(),
 });
@@ -32,11 +32,12 @@ export const BlockedListResponseSchema = z.object({ users: z.array(BlockedUserSc
 export const SearchUsersQuerySchema = z.object({ q: z.string().trim().min(2).max(30) });
 
 export const PresenceEventTypeSchema = z.enum(["PRESENCE_SNAPSHOT", "FRIEND_PRESENCE_CHANGED"]);
+const PresenceEventUserSchema = SocialUserSchema.pick({ userId: true, username: true, displayName: true }).extend({ presence: PresenceStatusSchema });
 export const PresenceEventSchema = z.object({
   protocolVersion: z.literal("0.1"),
   type: PresenceEventTypeSchema,
   timestamp: z.number().int().nonnegative(),
-  user: SocialUserSchema.pick({ userId: true, username: true, displayName: true, presence: true }),
+  user: PresenceEventUserSchema,
 });
 
 export const CreateInviteRequestSchema = z.object({ roomId: z.string().length(6), targetUserId: z.string().min(1) });

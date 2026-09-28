@@ -6,6 +6,7 @@ import type {
   ProfilePatchRequest,
   RecoverRequest,
   RegisterRequest,
+  PresenceVisibility,
 } from "@ottv2/contracts";
 
 import { AppError } from "../../shared/errors/app-error.js";
@@ -25,14 +26,18 @@ export type SelfProfile = {
   username: string;
   theme: "light" | "dark" | "system";
   avatarPreset: AvatarPreset;
+  privacy: { presenceVisibility: PresenceVisibility; friendListVisibility: "PRIVATE"; fullNameVisibility: "PRIVATE" };
   stats: { elo: number; rankedWins: number; rankedLosses: number; quickWins: number; quickLosses: number };
 };
 
 export type PublicProfile = {
+  userId: string;
   username: string;
   displayName: string;
   avatarPreset: AvatarPreset;
   stats: { elo: number; rankedWins: number; rankedLosses: number; quickWins: number; quickLosses: number };
+  friendCount: number;
+  recentForm: Array<"WIN" | "LOSS">;
 };
 
 export type AuthContext = { session: Session; user: UserWithData };
@@ -51,6 +56,14 @@ function avatarOf(profile: UserProfile | null): AvatarPreset {
   return profile?.avatarPreset === "wolf" || profile?.avatarPreset === "fox" || profile?.avatarPreset === "panda" || profile?.avatarPreset === "arena" ? profile.avatarPreset : "robot";
 }
 
+function privacyOf(profile: UserProfile | null): SelfProfile["privacy"] {
+  return {
+    presenceVisibility: profile?.presenceVisibility === "NOBODY" ? "NOBODY" : "FRIENDS",
+    friendListVisibility: "PRIVATE",
+    fullNameVisibility: "PRIVATE",
+  };
+}
+
 function statsOf(stats: UserStats | null) {
   return {
     elo: stats?.elo ?? 1000,
@@ -62,11 +75,7 @@ function statsOf(stats: UserStats | null) {
 }
 
 function toSelf(user: UserWithData): SelfProfile {
-  return { id: user.id, fullName: user.fullName, displayName: user.displayName, username: user.username, theme: themeOf(user.profile), avatarPreset: avatarOf(user.profile), stats: statsOf(user.stats) };
-}
-
-function toPublic(user: UserWithData): PublicProfile {
-  return { username: user.username, displayName: user.displayName, avatarPreset: avatarOf(user.profile), stats: statsOf(user.stats) };
+  return { id: user.id, fullName: user.fullName, displayName: user.displayName, username: user.username, theme: themeOf(user.profile), avatarPreset: avatarOf(user.profile), privacy: privacyOf(user.profile), stats: statsOf(user.stats) };
 }
 
 function unavailable(): never {
@@ -177,13 +186,19 @@ export class AuthService {
     const db = this.requireDb();
     const user = await db.user.findUnique({ where: { usernameNormalized: normalizeUsername(username) }, include: includeData });
     if (!user) throw new AppError("NOT_FOUND", "Không tìm thấy người chơi.", 404, false, "INVALID");
-    return toPublic(user);
+    const [friendCount, recentPlayers] = await Promise.all([
+      db.friendship.count({ where: { OR: [{ userAId: user.id }, { userBId: user.id }] } }),
+      db.matchPlayer.findMany({ where: { userId: user.id, isWinner: { not: null } }, orderBy: { match: { endedAt: "desc" } }, take: 5, select: { isWinner: true } }),
+    ]);
+    return { userId: user.id, username: user.username, displayName: user.displayName, avatarPreset: avatarOf(user.profile), stats: statsOf(user.stats), friendCount, recentForm: recentPlayers.map((player) => player.isWinner ? "WIN" : "LOSS") };
   }
 
   async updateProfile(context: AuthContext, input: ProfilePatchRequest): Promise<SelfProfile> {
     const db = this.requireDb();
-    await db.user.update({ where: { id: context.user.id }, data: { ...(input.fullName !== undefined ? { fullName: input.fullName.trim() } : {}), ...(input.displayName !== undefined ? { displayName: input.displayName.trim() } : {}) } });
-    if (input.theme !== undefined || input.avatarPreset !== undefined) await db.userProfile.upsert({ where: { userId: context.user.id }, create: { userId: context.user.id, ...(input.theme !== undefined ? { theme: input.theme } : {}), ...(input.avatarPreset !== undefined ? { avatarPreset: input.avatarPreset } : {}) }, update: { ...(input.theme !== undefined ? { theme: input.theme } : {}), ...(input.avatarPreset !== undefined ? { avatarPreset: input.avatarPreset } : {}) } });
+    await db.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: context.user.id }, data: { ...(input.fullName !== undefined ? { fullName: input.fullName.trim() } : {}), ...(input.displayName !== undefined ? { displayName: input.displayName.trim() } : {}) } });
+      if (input.theme !== undefined || input.avatarPreset !== undefined || input.presenceVisibility !== undefined || input.friendListVisibility !== undefined || input.fullNameVisibility !== undefined) await tx.userProfile.upsert({ where: { userId: context.user.id }, create: { userId: context.user.id, ...(input.theme !== undefined ? { theme: input.theme } : {}), ...(input.avatarPreset !== undefined ? { avatarPreset: input.avatarPreset } : {}), ...(input.presenceVisibility !== undefined ? { presenceVisibility: input.presenceVisibility } : {}), ...(input.friendListVisibility !== undefined ? { friendListVisibility: input.friendListVisibility } : {}), ...(input.fullNameVisibility !== undefined ? { fullNameVisibility: input.fullNameVisibility } : {}) }, update: { ...(input.theme !== undefined ? { theme: input.theme } : {}), ...(input.avatarPreset !== undefined ? { avatarPreset: input.avatarPreset } : {}), ...(input.presenceVisibility !== undefined ? { presenceVisibility: input.presenceVisibility } : {}), ...(input.friendListVisibility !== undefined ? { friendListVisibility: input.friendListVisibility } : {}), ...(input.fullNameVisibility !== undefined ? { fullNameVisibility: input.fullNameVisibility } : {}) } });
+    });
     const user = await db.user.findUniqueOrThrow({ where: { id: context.user.id }, include: includeData });
     return toSelf(user);
   }
