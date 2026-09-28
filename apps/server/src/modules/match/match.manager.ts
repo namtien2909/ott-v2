@@ -9,6 +9,7 @@ type MatchPlayerState = MatchActor & { side: Side; ready: boolean; connected: bo
 type MatchState = {
   matchId: string;
   roomId: string;
+  hostUserId: string;
   mode: MatchSnapshot["mode"];
   timerSeconds: number;
   players: MatchPlayerState[];
@@ -54,6 +55,7 @@ export class MatchManager {
       match = {
         matchId: randomUUID(),
         roomId: room.roomId,
+        hostUserId: room.hostUserId ?? room.members[0]?.userId ?? "",
         mode: room.mode,
         timerSeconds: room.timerSeconds,
         players: [],
@@ -74,6 +76,8 @@ export class MatchManager {
       };
       this.matches.set(room.roomId, match);
     }
+    if (!match) throw new AppError("INTERNAL_ERROR", "Match state chưa sẵn sàng.", 500, true, "RECOVERABLE");
+    match.hostUserId = room.hostUserId ?? room.members[0]?.userId ?? match.hostUserId;
     this.syncPlayers(match, room);
     this.advance(match);
     return this.snapshot(match);
@@ -379,6 +383,7 @@ export class MatchManager {
     return {
       matchId: match.matchId,
       roomId: match.roomId,
+      hostUserId: match.hostUserId,
       mode: match.mode,
       status: match.status,
       players: match.players.map(({ userId, username, displayName, side, ready, connected }) => ({ userId, username, displayName, side, ready, connected })),

@@ -30,6 +30,7 @@ export const MatchBoardSchema = z.record(z.string().regex(/^[a-i][1-9]$/), Match
 export const MatchSnapshotSchema = z.object({
   matchId: z.uuid(),
   roomId: z.string().length(6),
+  hostUserId: z.string().min(1).optional(),
   mode: MatchModeSchema,
   status: MatchStatusSchema,
   players: z.array(MatchPlayerSchema).max(2),

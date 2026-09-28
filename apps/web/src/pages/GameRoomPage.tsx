@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import type { MatchEventEnvelope, MatchSnapshot } from "@ottv2/contracts";
 import { createInitialState, type Coordinate, type RuleState, type Side } from "@ottv2/game-rules";
 import { routes } from "../app/routes";
@@ -7,9 +7,11 @@ import { GameBoard } from "../components/board";
 import { Button, LoadingState, Modal, useToast } from "../components/ui";
 import { ApiError } from "../services/http/apiError";
 import { fastReady, getMatch, requestRematch, setReady, submitMove, surrender, subscribeToMatch } from "../services/rooms/matchApi";
+import { leaveRoom } from "../services/rooms/roomApi";
 import { getTabId } from "../services/session/clientIdentity";
 import { applyPresentationPreferences, playSound } from "../services/presentation/preferences";
 import { createSemanticEvent, semanticEventBus, type SemanticEventType } from "../foundation/eventBus";
+import { formatCountdown } from "./queueState";
 
 type OnlineState = { kind: "loading" } | { kind: "ready"; match: MatchSnapshot; viewerSide: Side | null; connection: "connecting" | "connected" | "reconnecting" | "offline"; lastEvent?: string } | { kind: "error"; message: string };
 
@@ -34,6 +36,7 @@ function playerLabel(match: MatchSnapshot, side: Side): string {
 }
 
 export default function GameRoomPage() {
+  const navigate = useNavigate();
   const { roomId = "w1-demo" } = useParams();
   const isFixture = roomId === "w1-demo" || roomId.startsWith("w1-");
   const { notify } = useToast();
@@ -46,6 +49,8 @@ export default function GameRoomPage() {
   const [countdownSound, setCountdownSound] = useState(() => localStorage.getItem("ottv2:countdown-sound") !== "off");
   const [soundVolume, setSoundVolume] = useState(() => Number(localStorage.getItem("ottv2:sound-volume") ?? 55));
   const [pending, setPending] = useState(false);
+  const [leavePending, setLeavePending] = useState(false);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [lockConflict, setLockConflict] = useState(false);
   const [, setClockPulse] = useState(0);
 
@@ -181,6 +186,42 @@ export default function GameRoomPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [online, roomId, runCommand]);
 
+  const copyRoomCode = useCallback(async () => {
+    try {
+      if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(roomId);
+      else {
+        const input = document.createElement("textarea");
+        input.value = roomId;
+        input.setAttribute("readonly", "true");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        if (!document.execCommand("copy")) throw new Error("Clipboard unavailable");
+        input.remove();
+      }
+      setCopyStatus("copied");
+      notify("Đã sao chép mã phòng.", "success");
+    } catch {
+      setCopyStatus("failed");
+      notify("Không thể sao chép tự động. Hãy chọn và sao chép mã phòng.", "warning");
+    }
+  }, [notify, roomId]);
+
+  const leaveWaitingRoom = useCallback(async () => {
+    if (leavePending) return;
+    setLeavePending(true);
+    try {
+      await leaveRoom(roomId);
+      notify("Đã rời phòng.", "success");
+      navigate(routes.home);
+    } catch (reason) {
+      notify(reason instanceof ApiError ? reason.message : "Không thể rời phòng.", "error");
+    } finally {
+      setLeavePending(false);
+    }
+  }, [leavePending, navigate, notify, roomId]);
+
   if (isFixture) return <FixtureRoom roomId={roomId} state={fixtureState} viewSide={viewSide} setViewSide={setViewSide} />;
   if (online.kind === "loading") return <LoadingState fullPage label="Đang kết nối Game Room…" />;
   if (online.kind === "error") return <section className="placeholder"><p className="eyebrow">LỖI KẾT NỐI</p><h1>Không thể vào phòng</h1><p className="form-intro">{online.message}</p><Link className="button primary" to={routes.home}>Về trang chủ</Link></section>;
@@ -191,15 +232,15 @@ export default function GameRoomPage() {
   const farSide: Side = nearSide === "BLUE" ? "RED" : "BLUE";
   const canPlay = match.status === "PLAYING" && online.connection === "connected" && !lockConflict && online.viewerSide !== null && match.currentTurn === online.viewerSide;
   const isReady = online.viewerSide ? Boolean(match.players.find((player) => player.side === online.viewerSide)?.ready) : false;
-  const countdown = match.countdownEndsAt ? Math.max(0, Math.ceil((match.countdownEndsAt - Date.now()) / 1000)) : null;
+  const countdown = match.countdownEndsAt ? formatCountdown(match.countdownEndsAt) : null;
   const resultText = match.resultReason === "TIMEOUT" ? "Hết giờ" : match.resultReason === "SURRENDER" ? "Đầu hàng" : match.resultReason === "SERVER_INTERRUPTION" ? "Trận đấu bị gián đoạn" : match.resultReason === "GOAL_REACHED" ? "Chiếm ô đích" : match.resultReason === "EXTINCTION" ? "Đối thủ mất toàn bộ Kéo" : "Kết thúc";
 
   return <section className="game-room-page online-game-room"><div className="game-room-header"><div><p className="eyebrow">TRẬN ĐẤU TRỰC TUYẾN</p><h1>Phòng đấu {roomId}</h1><p className="game-room-subtitle">{match.mode === "RANKED" ? "Xếp hạng" : "Không xếp hạng"} · trạng thái đồng bộ trực tiếp</p></div><div className="game-header-actions"><span className={`connection-badge ${online.connection}`} role="status"><span className="status-dot" />{connectionLabel(online.connection)}</span><Button variant="secondary" onClick={() => setSettingsOpen(true)}>⚙ <span className="visually-hidden">Mở </span>Cài đặt</Button></div></div>
     {(online.connection !== "connected" || lockConflict) && <div className={`reconnect-overlay ${lockConflict ? "tab-lock" : online.connection}`} role="status" aria-live="polite"><strong>{lockConflict ? "Phòng đang mở ở tab khác" : online.connection === "offline" ? "Mất kết nối tới trận đấu" : "Đang kết nối lại trận đấu"}</strong><span>{lockConflict ? "Đóng tab kia để tiếp tục hoặc tải lại trang sau khi tab kia kết thúc." : online.connection === "offline" ? "Trạng thái máy chủ gần nhất vẫn được giữ; bàn cờ đã bị khoá." : "Đang chờ kết nối lại và đồng bộ trạng thái mới nhất."}</span>{online.connection === "offline" && <Button variant="secondary" onClick={() => window.location.reload()}>Tải lại</Button>}</div>}
-    <div className="match-status-bar" aria-live="polite"><strong>{match.status === "WAITING_READY" ? "Sẵn sàng?" : match.status === "COUNTDOWN" ? `Bắt đầu sau ${countdown ?? 0}` : match.status === "PLAYING" ? canPlay ? "LƯỢT CỦA BẠN" : "LƯỢT ĐỐI THỦ" : resultText}</strong><small>{match.status === "PLAYING" ? "Bàn cờ đang đồng bộ" : "Trạng thái trận đấu"}</small></div>
-    {match.status === "WAITING_READY" && <div className="ready-panel"><p>Hai người chơi cùng nhấn Sẵn sàng để bắt đầu đếm ngược 3 giây.</p><Button onClick={() => online.viewerSide && void runCommand(() => setReady(roomId, !isReady), isReady ? "Đã huỷ sẵn sàng." : "Đã sẵn sàng.")} disabled={!online.viewerSide || pending || lockConflict || online.connection !== "connected"}>{isReady ? "Huỷ sẵn sàng" : "Sẵn sàng"}</Button></div>}
+    {match.status === "WAITING_READY" ? <WaitingRoom match={match} viewerSide={online.viewerSide} disabled={!online.viewerSide || pending || lockConflict || online.connection !== "connected"} copyStatus={copyStatus} onCopy={() => void copyRoomCode()} onLeave={() => void leaveWaitingRoom()} onReady={() => online.viewerSide && void runCommand(() => setReady(roomId, !isReady), isReady ? "Đã huỷ sẵn sàng." : "Đã sẵn sàng.")} leavePending={leavePending} /> : <>
+    <div className="match-status-bar" aria-live="polite"><strong>{match.status === "COUNTDOWN" ? `Bắt đầu sau ${countdown ?? 0}` : match.status === "PLAYING" ? canPlay ? "LƯỢT CỦA BẠN" : "LƯỢT ĐỐI THỦ" : resultText}</strong><small>{match.status === "PLAYING" ? "Bàn cờ đang đồng bộ" : "Trạng thái trận đấu"}</small></div>
     {match.status === "COUNTDOWN" && <div className="countdown-banner" role="status" aria-live="assertive"><strong>{countdown ?? 0}</strong><span>Nhấn SPACE để bắt đầu ngay</span></div>}
-    <div className="game-room-layout"><div><div className="perspective-stage"><div className="perspective-hud far" data-perspective-side={farSide}><span className="perspective-label">ĐỐI THỦ · PHÍA XA</span><PlayerHud match={match} side={farSide} low={match.clocksMs[farSide] <= 10000} /></div><GameBoard state={state} viewSide={viewSide} interactionSide={online.viewerSide} disabled={!canPlay || pending} onMove={(from: Coordinate, to: Coordinate) => { if (online.viewerSide) void runCommand(() => submitMove(roomId, from, to, match.stateVersion)); }} /><div className="perspective-hud near" data-perspective-side={nearSide}><span className="perspective-label">BẠN · PHÍA GẦN</span><PlayerHud match={match} side={nearSide} low={match.clocksMs[nearSide] <= 10000} /></div></div><div className="match-actions"><span className="turn-copy">{match.status === "PLAYING" ? canPlay ? "Đến lượt bạn — chọn quân rồi chọn ô đích." : `Đang chờ ${match.currentTurn === "BLUE" ? playerLabel(match, "BLUE") : playerLabel(match, "RED")}.` : "Bàn cờ chỉ nhận nước đi khi trận đang diễn ra."}</span>{match.status === "PLAYING" && <Button variant="danger" onClick={() => setConfirmSurrender(true)} disabled={pending || lockConflict || online.connection !== "connected"}>Đầu hàng</Button>}</div></div><aside className="game-room-info" aria-label="Thông tin trận đấu"><PerspectiveInfoCard match={match} side={farSide} /><PerspectiveInfoCard match={match} side={nearSide} />{(match.status === "FINISHED" || match.status === "ABORTED") && <div className="result-card"><span>KẾT QUẢ TRẬN ĐẤU</span><strong>{match.status === "ABORTED" ? "Trận đấu bị gián đoạn" : match.winner === online.viewerSide ? "Chiến thắng" : match.winner ? "Thất bại" : "Không có người thắng"}</strong><small>{resultText}</small>{match.mode === "RANKED" && match.rating && <small className="rating-result">Elo · XANH {formatDelta(match.rating.blueDelta)} · ĐỎ {formatDelta(match.rating.redDelta)}</small>}<div className="result-actions">{match.status === "FINISHED" && <Button onClick={() => online.viewerSide && void runCommand(() => requestRematch(roomId, match.stateVersion), "Đã gửi yêu cầu chơi lại.")} disabled={pending || lockConflict || online.connection !== "connected"}>Chơi lại</Button>}<Link className="button secondary" to={routes.home}>Về trang chủ</Link></div></div>}</aside></div>
+    <div className="game-room-layout"><div><div className="perspective-stage"><div className="perspective-hud far" data-perspective-side={farSide}><span className="perspective-label">ĐỐI THỦ · PHÍA XA</span><PlayerHud match={match} side={farSide} low={match.clocksMs[farSide] <= 10000} /></div><GameBoard state={state} viewSide={viewSide} interactionSide={online.viewerSide} disabled={!canPlay || pending} onMove={(from: Coordinate, to: Coordinate) => { if (online.viewerSide) void runCommand(() => submitMove(roomId, from, to, match.stateVersion)); }} /><div className="perspective-hud near" data-perspective-side={nearSide}><span className="perspective-label">BẠN · PHÍA GẦN</span><PlayerHud match={match} side={nearSide} low={match.clocksMs[nearSide] <= 10000} /></div></div><div className="match-actions"><span className="turn-copy">{match.status === "PLAYING" ? canPlay ? "Đến lượt bạn — chọn quân rồi chọn ô đích." : `Đang chờ ${match.currentTurn === "BLUE" ? playerLabel(match, "BLUE") : playerLabel(match, "RED")}.` : "Bàn cờ chỉ nhận nước đi khi trận đang diễn ra."}</span>{match.status === "PLAYING" && <Button variant="danger" onClick={() => setConfirmSurrender(true)} disabled={pending || lockConflict || online.connection !== "connected"}>Đầu hàng</Button>}</div></div><aside className="game-room-info" aria-label="Thông tin trận đấu"><PerspectiveInfoCard match={match} side={farSide} /><PerspectiveInfoCard match={match} side={nearSide} />{(match.status === "FINISHED" || match.status === "ABORTED") && <div className="result-card"><span>KẾT QUẢ TRẬN ĐẤU</span><strong>{match.status === "ABORTED" ? "Trận đấu bị gián đoạn" : match.winner === online.viewerSide ? "Chiến thắng" : match.winner ? "Thất bại" : "Không có người thắng"}</strong><small>{resultText}</small>{match.mode === "RANKED" && match.rating && <small className="rating-result">Elo · XANH {formatDelta(match.rating.blueDelta)} · ĐỎ {formatDelta(match.rating.redDelta)}</small>}<div className="result-actions">{match.status === "FINISHED" && <Button onClick={() => online.viewerSide && void runCommand(() => requestRematch(roomId, match.stateVersion), "Đã gửi yêu cầu chơi lại.")} disabled={pending || lockConflict || online.connection !== "connected"}>Chơi lại</Button>}<Link className="button secondary" to={routes.home}>Về trang chủ</Link></div></div>}</aside></div></>}
     <Modal open={confirmSurrender} title="Bạn chắc chắn muốn đầu hàng?" description="Kết quả sẽ do máy chủ ghi nhận và không thể hoàn tác." dismissible={false} onClose={() => setConfirmSurrender(false)}><div className="modal-actions"><Button variant="secondary" onClick={() => setConfirmSurrender(false)}>Hủy</Button><Button variant="danger" onClick={() => { setConfirmSurrender(false); void runCommand(() => surrender(roomId, match.stateVersion), "Đã đầu hàng."); }}>Đầu hàng</Button></div></Modal>
     <Modal open={settingsOpen} title="Cài đặt trong trận" description="Các tuỳ chọn này chỉ thay đổi phần hiển thị và âm thanh." onClose={() => setSettingsOpen(false)}><div className="form-stack"><label className="check-row"><input type="checkbox" checked={soundEnabled} onChange={(event) => { const enabled = event.target.checked; setSoundEnabled(enabled); localStorage.setItem("ottv2:sound", enabled ? "on" : "off"); }} /> Âm thanh giao diện</label><label>Âm lượng hiệu ứng <input type="range" min="0" max="100" value={soundVolume} onChange={(event) => { const value = Number(event.target.value); setSoundVolume(value); localStorage.setItem("ottv2:sound-volume", String(value)); }} aria-valuetext={`${soundVolume}%`} /></label><label className="check-row"><input type="checkbox" checked={countdownSound} onChange={(event) => { const enabled = event.target.checked; setCountdownSound(enabled); localStorage.setItem("ottv2:countdown-sound", enabled ? "on" : "off"); }} /> Âm thanh đếm ngược</label><label className="check-row"><input type="checkbox" defaultChecked={localStorage.getItem("ottv2:reduced-motion") === "on"} onChange={(event) => { localStorage.setItem("ottv2:reduced-motion", event.target.checked ? "on" : "off"); applyPresentationPreferences(); }} /> Giảm chuyển động</label><Button variant="secondary" onClick={() => setSettingsOpen(false)}>Đóng</Button></div></Modal>
   </section>;
@@ -221,6 +262,21 @@ function semanticTypeForMatchEvent(type: MatchEventEnvelope["type"]): SemanticEv
     REMATCH_REQUESTED: "REMATCH",
   };
   return mapping[type] ?? null;
+}
+
+function WaitingRoom({ match, viewerSide, disabled, copyStatus, onCopy, onLeave, onReady, leavePending }: { match: MatchSnapshot; viewerSide: Side | null; disabled: boolean; copyStatus: "idle" | "copied" | "failed"; onCopy: () => void; onLeave: () => void; onReady: () => void; leavePending: boolean }) {
+  return <section className="waiting-room" aria-labelledby="waiting-room-title"><div className="waiting-room-header"><div><p className="eyebrow">WAITING ROOM</p><h2 id="waiting-room-title">Sẵn sàng vào trận</h2><p>{match.mode === "RANKED" ? "RANKED" : "UNRANKED"} <span aria-hidden="true">•</span> PRIVATE <span aria-hidden="true">•</span> {Math.round(match.timerSeconds / 60)} PHÚT</p></div><button type="button" className="room-code-chip" onClick={onCopy} aria-label={`Sao chép mã phòng ${match.roomId}`}><span>MÃ PHÒNG</span><strong>{match.roomId}</strong><small>{copyStatus === "copied" ? "ĐÃ SAO CHÉP" : copyStatus === "failed" ? "CHỌN ĐỂ SAO CHÉP" : "SAO CHÉP ID"}</small></button></div><div className="waiting-slots"><WaitingSlot match={match} side="BLUE" viewerSide={viewerSide} disabled={disabled} onReady={onReady} /><div className="waiting-vs" aria-hidden="true">VS</div><WaitingSlot match={match} side="RED" viewerSide={viewerSide} disabled={disabled} onReady={onReady} /></div><p className="waiting-hint" role="status">Nhấn <kbd>Space</kbd> để bỏ qua đếm ngược sau khi cả hai người chơi đã sẵn sàng.</p><div className="waiting-actions"><Button variant="secondary" onClick={onCopy}>Sao chép ID</Button><Button variant="danger" onClick={onLeave} pending={leavePending} pendingLabel="Đang rời…">Rời phòng</Button></div></section>;
+}
+
+function WaitingSlot({ match, side, viewerSide, disabled, onReady }: { match: MatchSnapshot; side: Side; viewerSide: Side | null; disabled: boolean; onReady: () => void }) {
+  const player = match.players.find((item) => item.side === side);
+  const isMine = viewerSide === side;
+  const isHost = player ? match.hostUserId === player.userId || (match.hostUserId === undefined && side === "BLUE") : false;
+  return <article className={`waiting-slot ${side.toLowerCase()} ${player?.ready ? "ready" : ""}`} aria-label={`${side} slot`}><div className="waiting-slot-top"><span className="slot-side">{side}</span>{isHost && <span className="host-mark" title="Chủ phòng"><HostMark /><span className="visually-hidden">Chủ phòng</span></span>}</div><div className="slot-avatar" aria-hidden="true">{player ? player.displayName.slice(0, 2).toUpperCase() : "··"}</div><strong>{player?.displayName ?? "Đang chờ đối thủ"}</strong><small>{player ? `@${player.username}` : "Slot đang mở"}</small><span className="slot-ready-state">{player?.ready ? "READY" : "CHƯA SẴN SÀNG"}</span>{isMine && player && <Button onClick={onReady} disabled={disabled}>{player.ready ? "Huỷ sẵn sàng" : "Sẵn sàng"}</Button>}</article>;
+}
+
+function HostMark() {
+  return <svg viewBox="0 0 32 24" aria-hidden="true"><path d="m2 4 6 5 8-8 8 8 6-5-3 17H5L2 4Z" /><path d="M5 21h22" /></svg>;
 }
 
 function PlayerHud({ match, side, low }: { match: MatchSnapshot; side: Side; low: boolean }) {
