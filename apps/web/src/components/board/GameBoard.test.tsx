@@ -76,11 +76,11 @@ describe("GameBoard", () => {
     act(() => fireEvent.keyDown(first, { key: "ArrowDown" }));
     expect(gridcells.filter((cell) => cell.getAttribute("tabindex") === "0")).toHaveLength(1);
     const piece = screen.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ });
-    piece.focus();
+    act(() => piece.focus());
     act(() => fireEvent.keyDown(piece, { key: "Enter" }));
     expect(piece).toHaveAttribute("aria-pressed", "true");
     const destination = screen.getByRole("gridcell", { name: /Ô b2, trống/ });
-    destination.focus();
+    act(() => destination.focus());
     act(() => fireEvent.keyDown(destination, { key: " " }));
     expect(onMove).toHaveBeenCalledWith("b1", "b2");
   });
