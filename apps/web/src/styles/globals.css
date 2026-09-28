@@ -10,8 +10,8 @@
   --glass: rgba(255, 255, 255, .78);
   --text-primary: #0b1220;
   --text-secondary: #3f5069;
-  --text-muted: #62738b;
-  --system-cyan: #0b9eb7;
+  --text-muted: #4f6077;
+  --system-cyan: #007a8c;
   --blue-player: #267bff;
   --blue-high: #55a1ff;
   --red-player: #ff3f5e;
@@ -318,6 +318,16 @@ a { color: inherit; }
 .final-position-unavailable { display: grid; min-height: 7rem; place-items: center; padding: 1rem; color: var(--text-muted); border: 1px dashed var(--border); border-radius: var(--radius-md); background: var(--surface-raised); font-size: .82rem; text-align: center; }
 @keyframes history-skeleton-shimmer { to { transform: translateX(100%); } }
 @media (prefers-reduced-motion: reduce) { .history-summary-skeleton > div::after, .history-card-skeleton::after { animation: none; } }
+
+/* B13 accessibility hardening: explicit ink colors and semantic grid layout. */
+:root { --blue-player-ink: #005cc8; --red-player-ink: #c62845; }
+:root[data-theme="dark"] { --blue-player-ink: #55a1ff; --red-player-ink: #ff7188; }
+.board-row { display: contents; }
+.player-hud .player-side { color: var(--blue-player-ink); }
+.player-hud.red .player-side { color: var(--red-player-ink); }
+.turn-badge.blue { background: var(--blue-player-ink); }
+.turn-badge.red { background: var(--red-player-ink); }
+.board-coordinate { opacity: 1; }
 @media (max-width: 700px) { .history-card-skeleton { grid-template-columns: 1fr; min-height: 11rem; }.history-card-skeleton > div:last-child { justify-items: start; }.final-position { width: 100%; } }
 @media (max-width: 767px) { .app-shell:not(.game-shell) { padding-bottom: calc(4.7rem + env(safe-area-inset-bottom)); }.app-header { position: relative; grid-template-columns: 1fr auto; min-height: 4rem; padding-inline: 1rem; }.network-status, .main-nav { display: none; }.header-actions { gap: .35rem; }.bottom-nav { position: fixed; z-index: 40; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(4, 1fr); min-height: calc(4.25rem + env(safe-area-inset-bottom)); padding: .35rem .45rem calc(.35rem + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(14px); }.bottom-nav a { display: grid; min-height: 3.2rem; place-items: center; gap: .08rem; color: var(--text-muted); font-size: 1.15rem; text-decoration: none; }.bottom-nav a span { font-size: .62rem; font-weight: 800; }.bottom-nav a.active { color: var(--data-accent); }.game-shell .game-room-page { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }.board-piece-token { width: 84%; height: 84%; } }
 /* B8 profile dossier */

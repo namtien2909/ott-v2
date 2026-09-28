@@ -119,7 +119,8 @@ export function GameBoard({ state, viewSide, interactionSide = viewSide, onMove,
         <div className="board-with-ranks">
           <div className="board-axis board-axis-left" aria-hidden="true">{displayRanks.map((rank) => <span key={`left-${rank}`}>{rank}</span>)}</div>
           <div className="game-board" role="grid" aria-label="Bàn cờ OTTv2 9 nhân 9">
-            {displayCoordinates.map((coordinate) => {
+            {Array.from({ length: 9 }, (_, row) => <div className="board-row" role="row" key={`row-${row}`}>
+            {displayCoordinates.slice(row * 9, row * 9 + 9).map((coordinate) => {
               const piece = state.board[coordinate];
               const isSelected = selectedCoordinate === coordinate;
               const isLegalDestination = legalDestinationSet.has(coordinate);
@@ -141,7 +142,7 @@ export function GameBoard({ state, viewSide, interactionSide = viewSide, onMove,
                   role="gridcell"
                   type="button"
                   aria-label={`Ô ${coordinate}, ${pieceLabel(piece)}${goalSide ? `, đích ${goalSide === "blue" ? "Xanh" : "Đỏ"}` : ""}${isLegalDestination ? (isCapture ? ", có thể ăn quân" : ", có thể đi") : ""}`}
-                  aria-pressed={isSelected}
+                  aria-selected={isSelected}
                 >
                   {goalSide && <span className="goal-marker" aria-hidden="true">◆</span>}
                   {piece && <span className={`board-piece-token ${piece.side.toLowerCase()}`} aria-hidden="true"><PieceGlyph type={piece.type} /><span className="board-piece-type">{piece.type}</span></span>}
@@ -149,6 +150,7 @@ export function GameBoard({ state, viewSide, interactionSide = viewSide, onMove,
                 </button>
               );
             })}
+            </div>)}
           </div>
           <div className="board-axis board-axis-right" aria-hidden="true">{displayRanks.map((rank) => <span key={`right-${rank}`}>{rank}</span>)}</div>
         </div>

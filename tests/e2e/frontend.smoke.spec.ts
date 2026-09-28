@@ -166,7 +166,7 @@ test("spectator is read-only and exposes canonical activity feeds", async ({ pag
   await expect(page.getByRole("region", { name: "Combat feed" })).toContainText("Chưa có diễn biến kết quả.");
   const bluePiece = page.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ });
   await bluePiece.click({ force: true });
-  await expect(bluePiece).toHaveAttribute("aria-pressed", "false");
+  await expect(bluePiece).toHaveAttribute("aria-selected", "false");
   await expect(page.locator("[data-legal='true']")).toHaveCount(0);
 });
 

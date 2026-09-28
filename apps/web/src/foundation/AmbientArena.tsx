@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { QUALITY_PARTICLE_COUNTS, useQualityTier, qualityTierController } from "./qualityTier";
+import { QUALITY_PARTICLE_COUNTS, qualityDprCap, useQualityTier, qualityTierController } from "./qualityTier";
 
 type Particle = { x: number; y: number; radius: number; alpha: number; speed: number; drift: number };
 
@@ -29,7 +29,7 @@ export function AmbientArena() {
     let previous = performance.now();
     let particles: Particle[] = [];
     const resize = () => {
-      const dpr = tier === "high" ? Math.min(2, window.devicePixelRatio || 1) : tier === "medium" ? Math.min(1.5, window.devicePixelRatio || 1) : 1;
+      const dpr = qualityDprCap(tier);
       canvas.width = Math.max(1, Math.floor(window.innerWidth * dpr));
       canvas.height = Math.max(1, Math.floor(window.innerHeight * dpr));
       canvas.style.width = `${window.innerWidth}px`;
@@ -60,11 +60,13 @@ export function AmbientArena() {
       if (document.visibilityState === "hidden") {
         running = false;
         window.cancelAnimationFrame(animationFrame);
+        qualityTierController.resetFrameMonitor();
         return;
       }
       if (!running) {
         running = true;
         previous = performance.now();
+        qualityTierController.resetFrameMonitor();
         animationFrame = window.requestAnimationFrame(render);
       }
     };

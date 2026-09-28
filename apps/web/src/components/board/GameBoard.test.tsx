@@ -26,7 +26,7 @@ describe("GameBoard", () => {
     const state = createInitialState();
     render(<GameBoard state={state} viewSide="BLUE" />);
     fireEvent.click(screen.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ }));
-    expect(screen.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("gridcell", { name: /Ô a1, Quân Kéo phe Xanh/ })).toHaveAttribute("data-legal", "false");
     expect(screen.getByRole("gridcell", { name: /Ô a2, trống/ })).toHaveAttribute("data-legal", "true");
     expect(screen.getByRole("gridcell", { name: /Ô b2, trống/ })).toHaveAttribute("data-legal", "true");
@@ -37,7 +37,7 @@ describe("GameBoard", () => {
   it("does not select an opponent piece for the current view side", () => {
     render(<GameBoard state={createInitialState()} viewSide="BLUE" />);
     fireEvent.click(screen.getByRole("gridcell", { name: /Ô a9, Quân Bao phe Đỏ/ }));
-    expect(screen.getByRole("gridcell", { name: /Ô a9, Quân Bao phe Đỏ/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("gridcell", { name: /Ô a9, Quân Bao phe Đỏ/ })).toHaveAttribute("aria-selected", "false");
   });
 
   it("keeps BLUE orientation while allowing RED interaction", () => {
@@ -45,7 +45,7 @@ describe("GameBoard", () => {
     render(<GameBoard state={state} viewSide="BLUE" interactionSide="RED" />);
     const redPiece = screen.getByRole("gridcell", { name: /Ô h9, Quân Đấm phe Đỏ/ });
     fireEvent.click(redPiece);
-    expect(redPiece).toHaveAttribute("aria-pressed", "true");
+    expect(redPiece).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("gridcell", { name: /Ô h8, trống/ })).toHaveAttribute("data-legal", "true");
   });
 
@@ -78,7 +78,7 @@ describe("GameBoard", () => {
     const piece = screen.getByRole("gridcell", { name: /Ô b1, Quân Đấm phe Xanh/ });
     act(() => piece.focus());
     act(() => fireEvent.keyDown(piece, { key: "Enter" }));
-    expect(piece).toHaveAttribute("aria-pressed", "true");
+    expect(piece).toHaveAttribute("aria-selected", "true");
     const destination = screen.getByRole("gridcell", { name: /Ô b2, trống/ });
     act(() => destination.focus());
     act(() => fireEvent.keyDown(destination, { key: " " }));

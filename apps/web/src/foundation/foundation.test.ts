@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyDesignTokens, DESIGN_TOKENS } from "./tokens";
 import { createSemanticEvent, SemanticEventBus } from "./eventBus";
-import { QUALITY_PARTICLE_COUNTS, detectQualityTier, resolveQualityPreference } from "./qualityTier";
+import { QUALITY_DPR_CAPS, QUALITY_PARTICLE_COUNTS, detectQualityTier, qualityDprCap, qualityTierController, resolveQualityPreference } from "./qualityTier";
 
 describe("B1 shared foundation", () => {
   it("applies the 06B semantic token contract for light and dark surfaces", () => {
@@ -25,6 +25,10 @@ describe("B1 shared foundation", () => {
 
   it("exposes tier budgets and a safe automatic fallback", () => {
     expect(QUALITY_PARTICLE_COUNTS).toEqual({ high: 400, medium: 150, low: 0 });
+    expect(QUALITY_DPR_CAPS).toEqual({ high: 2, medium: 1.5, low: 1 });
+    expect(qualityDprCap("high", 3)).toBe(2);
+    expect(qualityDprCap("medium", 1)).toBe(1);
+    expect(qualityDprCap("low", 3)).toBe(1);
     expect(["high", "medium", "low"]).toContain(detectQualityTier());
   });
 
@@ -33,5 +37,17 @@ describe("B1 shared foundation", () => {
     expect(detectQualityTier({ hardwareConcurrency: 8, deviceMemory: 4, viewportWidth: 1440 })).toBe("medium");
     expect(detectQualityTier({ hardwareConcurrency: 8, deviceMemory: 8, viewportWidth: 1440 })).toBe("high");
     expect(resolveQualityPreference("low", { hardwareConcurrency: 8, deviceMemory: 8, viewportWidth: 1440 })).toBe("low");
+  });
+
+  it("only downgrades after a continuous three-second p95 frame window", () => {
+    qualityTierController.setPreference("auto");
+    qualityTierController.set("high");
+    qualityTierController.resetFrameMonitor();
+    for (let index = 0; index < 180; index += 1) qualityTierController.reportFrame(30, index * 16);
+    expect(qualityTierController.current).toBe("high");
+    qualityTierController.reportFrame(30, 3_000);
+    expect(qualityTierController.current).toBe("medium");
+    qualityTierController.setPreference("auto");
+    qualityTierController.resetFrameMonitor();
   });
 });

@@ -15,7 +15,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     window.setTimeout(() => dismiss(id), duration);
   }, [dismiss]);
   const value = useMemo(() => ({ notify }), [notify]);
-  return <ToastContext.Provider value={value}>{children}<div className="toast-viewport" aria-label="Thông báo">{toasts.map((toast) => <Toast key={toast.id} toast={toast} onDismiss={dismiss} />)}</div></ToastContext.Provider>;
+  return <ToastContext.Provider value={value}>{children}<div className="toast-viewport" role="region" aria-label="Thông báo" aria-live="polite">{toasts.map((toast) => <Toast key={toast.id} toast={toast} onDismiss={dismiss} />)}</div></ToastContext.Provider>;
 }
 
 export function useToast() {

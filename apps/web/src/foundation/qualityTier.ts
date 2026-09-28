@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 export type QualityTier = "high" | "medium" | "low";
 export type QualityPreference = "auto" | QualityTier;
 export const QUALITY_PARTICLE_COUNTS: Readonly<Record<QualityTier, number>> = { high: 400, medium: 150, low: 0 };
+export const QUALITY_DPR_CAPS: Readonly<Record<QualityTier, number>> = { high: 2, medium: 1.5, low: 1 };
 export const QUALITY_STORAGE_KEY = "ottv2:quality-tier";
 
 const tiers: readonly QualityTier[] = ["high", "medium", "low"];
@@ -50,11 +51,16 @@ export function resolveQualityPreference(preference: QualityPreference, environm
   return preference === "auto" ? detectQualityTier(environment) : preference;
 }
 
+export function qualityDprCap(tier: QualityTier, devicePixelRatio = typeof window === "undefined" ? 1 : window.devicePixelRatio): number {
+  return Math.min(QUALITY_DPR_CAPS[tier], Math.max(1, Number.isFinite(devicePixelRatio) ? devicePixelRatio : 1));
+}
+
 class QualityTierController {
   private preference: QualityPreference = readQualityPreference();
   private tier: QualityTier = resolveQualityPreference(this.preference);
   private readonly listeners = new Set<(tier: QualityTier) => void>();
   private frameSamples: number[] = [];
+  private frameWindowStartedAt: number | null = null;
 
   get current(): QualityTier { return this.tier; }
   get selected(): QualityPreference { return this.preference; }
@@ -81,13 +87,15 @@ class QualityTierController {
     }
   }
 
-  reportFrame(durationMs: number): void {
+  reportFrame(durationMs: number, sampledAt = performance.now()): void {
     if (this.preference !== "auto" || this.tier === "low" || !Number.isFinite(durationMs)) return;
+    if (this.frameWindowStartedAt === null) this.frameWindowStartedAt = sampledAt;
     this.frameSamples.push(durationMs);
-    if (this.frameSamples.length < 30) return;
+    if (sampledAt - this.frameWindowStartedAt < 3_000) return;
     const sorted = [...this.frameSamples].sort((a, b) => a - b);
     const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))];
     this.frameSamples = [];
+    this.frameWindowStartedAt = sampledAt;
     if (p95 > 24) {
       const previous = this.tier;
       this.set(this.tier === "high" ? "medium" : "low");
@@ -95,6 +103,12 @@ class QualityTierController {
         window.dispatchEvent(new CustomEvent("ottv2:quality-downgrade", { detail: { from: previous, to: this.tier } }));
       }
     }
+  }
+
+  /** Test/diagnostic hook: clears the rolling frame window without changing preference. */
+  resetFrameMonitor(): void {
+    this.frameSamples = [];
+    this.frameWindowStartedAt = null;
   }
 }
 

@@ -561,6 +561,17 @@ Chi tiết: [B11_GUEST_AI_OFFLINE.md](B11_GUEST_AI_OFFLINE.md).
 - DPR/particle/FPS cap đúng tier.
 - Không thêm WebGL/video/dependency nếu chưa có justification.
 
+### Wave B13 execution evidence (đã thực thi)
+
+Chi tiết: [B13_CROSS_CUTTING_QA.md](B13_CROSS_CUTTING_QA.md).
+
+- [x] Semantic board grid: row/gridcell structure, roving focus, Arrow/Enter/Space/Escape and live selection state.
+- [x] Axe WCAG 2A/2AA scans across public/auth/recovery, history/social/settings/local and online game families: 0 critical/serious violations.
+- [x] Light-theme contrast corrections, side ink/shape redundancy and focus-visible contract.
+- [x] Responsive matrix 375×812, 768×1024, 1366×768, 1920×1080 with no horizontal overflow.
+- [x] Reduced-motion + low-tier browser gate and three-second p95 frame downgrade monitor.
+- [x] 28/28 full frontend E2E tests passed; web 54 component tests passed; typecheck/lint/build gate executed.
+
 ---
 
 ## 18. Backend/contract work package
