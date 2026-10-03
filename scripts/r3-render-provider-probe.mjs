@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { chmod, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { cpus, freemem, tmpdir, totalmem } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -68,7 +68,7 @@ async function download(url, destination) {
   // release host. The URL is pinned in the checked-in manifest and the
   // downloaded bytes are hash-verified before anything is executed.
   const partial = `${destination}.partial`;
-  await unlink(partial, { force: true });
+  await rm(partial, { force: true });
   if (process.platform !== "win32") {
     try {
       const curl = await runCommand("curl", ["--fail", "--location", "--retry", "3", "--retry-all-errors", "--silent", "--show-error", "--output", partial, url]);
@@ -79,7 +79,7 @@ async function download(url, destination) {
     } catch {
       // Fall back to Node fetch when curl is unavailable in a build image.
     }
-    await unlink(partial, { force: true });
+    await rm(partial, { force: true });
   }
   const response = await fetch(url, { redirect: "follow" });
   if (!response.ok || !response.body) throw new Error(`Pinned runtime download failed (${response.status}).`);
