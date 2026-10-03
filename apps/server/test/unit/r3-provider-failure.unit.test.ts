@@ -13,4 +13,14 @@ describe("provider failure report", () => {
     expect(report.status).toBe("NOT_PROVEN");
     expect(JSON.stringify(report)).not.toContain("private-path-or-secret");
   });
+
+  it("accepts sanitized provider process-abort diagnostics", () => {
+    const report = R3ProviderResponseSchema.parse({
+      schemaVersion: 1, status: "NOT_PROVEN", runtimeGate: "NOT_PROVEN",
+      measuredAt: "2026-10-03T00:00:00.000Z", playerCodeExecuted: false, fixtureCodeExecuted: false,
+      reason: "Provider probe failed closed; no player code was executed.", stage: "parse-wasmtime-security-probe",
+      failedChecks: ["abi"], startup: { cause: "HOST_PROCESS_ABORTED", code: 134, signal: null, elapsedMs: 176, hostTimedOut: false }
+    });
+    expect(report.startup?.cause).toBe("HOST_PROCESS_ABORTED");
+  });
 });
