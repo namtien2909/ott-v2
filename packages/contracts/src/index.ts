@@ -11,3 +11,4 @@ export * from "./history.js";
 export * from "./social.js";
 export * from "./guest.js";
 export * from "./version.js";
+export * from "./r3-provider.js";

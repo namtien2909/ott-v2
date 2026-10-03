@@ -22,6 +22,7 @@ const wasmtimePath = cliArgs.get("--wasmtime") ?? process.env.R3_WASMTIME;
 const cpythonDir = cliArgs.get("--cpython-dir") ?? process.env.R3_CPYTHON_DIR;
 const outsideSentinelPath = cliArgs.get("--outside-sentinel") ?? process.env.R3_OUTSIDE_SENTINEL;
 const readonlyProbeFile = cliArgs.get("--readonly-probe-file") ?? process.env.R3_READONLY_PROBE_FILE;
+const expectedWasmtimeSha256 = cliArgs.get("--wasmtime-sha256") ?? artifactManifest.artifacts?.wasmtime?.binarySha256;
 const requirePass = process.argv.includes("--require-pass");
 
 async function exists(path) {
@@ -57,7 +58,6 @@ function missingReport(reason) {
 
 const artifactHashMismatches = [];
 if (wasmtimePath && cpythonDir && (await exists(wasmtimePath)) && (await exists(resolve(cpythonDir, "python.wasm")))) {
-  const expectedWasmtimeSha256 = artifactManifest.artifacts?.wasmtime?.binarySha256;
   const expectedCpythonSha256 = artifactManifest.artifacts?.cpythonWasi?.wasmSha256;
   const [actualWasmtimeSha256, actualCpythonSha256] = await Promise.all([sha256(wasmtimePath), sha256(resolve(cpythonDir, "python.wasm"))]);
   if (!expectedWasmtimeSha256 || actualWasmtimeSha256.toLowerCase() !== expectedWasmtimeSha256.toLowerCase()) {

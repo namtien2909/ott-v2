@@ -22,6 +22,7 @@ import { GuestImportService } from "./modules/guest/guest-import.service.js";
 import { registerGuestImportRoutes } from "./modules/guest/guest-import.route.js";
 import { MetricsRegistry } from "./modules/diagnostics/metrics.js";
 import { registerMetricsRoute } from "./modules/diagnostics/metrics.route.js";
+import { registerR3ProviderRoute } from "./modules/diagnostics/r3-provider.route.js";
 import { registerCors } from "./plugins/cors.js";
 import { registerErrorHandler } from "./plugins/error-handler.js";
 import { registerWebApp } from "./plugins/web-app.js";
@@ -83,6 +84,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerSocialRoutes(app, auth, social);
   await registerGuestImportRoutes(app, auth, guestImport, env.NODE_ENV === "production");
   await registerMetricsRoute(app, metrics);
+  await registerR3ProviderRoute(app);
   await registerHealthRoute(app, new HealthService(database, realtime));
   app.addHook("onReady", async () => realtime.start());
   const requestStarts = new Map<string, number>();
