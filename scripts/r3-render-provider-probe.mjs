@@ -38,6 +38,7 @@ let probeStage = "not_started";
 let failureStartup;
 let failureChecks = [];
 let failureObservedChecks = {};
+let failureScheduler;
 
 export function sanitizeProbeChecks(checks = {}) {
   const allowed = new Set([
@@ -387,7 +388,11 @@ async function main() {
   probeStage = "write-provider-evidence";
   const report = buildReport(probe, scheduler);
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-  if (report.status !== "PROVEN") throw new Error("Provider runtime evidence did not pass.");
+  if (report.status !== "PROVEN") {
+    failureChecks = ["admission"];
+    failureScheduler = scheduler;
+    throw new Error("Provider runtime evidence did not pass.");
+  }
 }
 
 try {
@@ -406,6 +411,7 @@ try {
       startup: failureStartup,
       failedChecks: failureChecks,
       checks: failureObservedChecks,
+      scheduler: failureScheduler,
       reason: "Provider probe failed closed; no player code was executed."
     }, null, 2)}\n`, "utf8");
     const safeReason = error instanceof Error ? error.message.replace(/[^a-zA-Z0-9:_(). -]/g, "").slice(0, 220) : "UnknownError";

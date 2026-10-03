@@ -34,4 +34,15 @@ describe("provider failure report", () => {
     expect(report.checks?.determinism?.sameSeedSameState).toBe(false);
     expect(JSON.stringify(report)).not.toContain("source");
   });
+
+  it("accepts safe admission scheduler evidence", () => {
+    const report = R3ProviderResponseSchema.parse({
+      schemaVersion: 1, status: "NOT_PROVEN", runtimeGate: "NOT_PROVEN",
+      measuredAt: "2026-10-03T00:00:00.000Z", playerCodeExecuted: false, fixtureCodeExecuted: false,
+      reason: "Provider probe failed closed; no player code was executed.", stage: "write-provider-evidence",
+      failedChecks: ["admission"], scheduler: { pass: false, requested: 4, completed: 4, maxConcurrent: 1,
+        results: [{ id: 0, code: 134, elapsedMs: 170, validOutput: false }, { id: 1, code: 134, elapsedMs: 170, validOutput: false }, { id: 2, code: 134, elapsedMs: 170, validOutput: false }, { id: 3, code: 134, elapsedMs: 170, validOutput: false }] }
+    });
+    expect(report.scheduler?.maxConcurrent).toBe(1);
+  });
 });

@@ -61,6 +61,13 @@ export const R3ProviderFailureSchema = z.object({
   stage: z.string().regex(/^[a-z-]+$/),
   failedChecks: z.array(z.string().regex(/^[a-zA-Z0-9_-]+$/)),
   checks: z.record(z.string(), R3ProviderCheckSchema).optional(),
+  scheduler: z.object({
+    pass: z.boolean(),
+    requested: z.number().int().nonnegative(),
+    completed: z.number().int().nonnegative(),
+    maxConcurrent: z.number().int().nonnegative(),
+    results: z.array(R3ProviderSchedulerResultSchema)
+  }).optional(),
   startup: z.object({
     cause: z.enum(["HOST_STARTUP_TIMEOUT", "GLIBC_VERSION_UNAVAILABLE", "SHARED_LIBRARY_UNAVAILABLE", "EXECUTABLE_UNAVAILABLE", "EXECUTION_PERMISSION_DENIED", "HOST_THREAD_RESOURCE_FAILURE", "PYTHON_RUNTIME_LAYOUT_FAILURE", "GUEST_BUDGET_EXCEEDED", "HOST_PROCESS_ABORTED", "HOST_PROCESS_KILLED", "OK", "UNCLASSIFIED_STARTUP_FAILURE"]),
     code: z.number().int().nullable(),
