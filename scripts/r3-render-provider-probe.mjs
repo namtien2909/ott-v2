@@ -288,8 +288,9 @@ async function main() {
   await download(wasmtime.linuxArchiveUrl, wasmtimeArchive);
   probeStage = "download-cpython";
   await download(`https://github.com/brettcannon/cpython-wasi-build/releases/download/v${cpython.version}/${cpython.archive}`, cpythonArchive);
-  probeStage = "verify-archives";
+  probeStage = "verify-wasmtime-archive";
   if ((await sha256(wasmtimeArchive)).toLowerCase() !== wasmtime.linuxArchiveSha256.toLowerCase()) throw new Error("Wasmtime archive hash mismatch.");
+  probeStage = "verify-cpython-archive";
   if ((await sha256(cpythonArchive)).toLowerCase() !== cpython.archiveSha256.toLowerCase()) throw new Error("CPython-WASI archive hash mismatch.");
   probeStage = "extract-wasmtime";
   await extractArchive(wasmtimeArchive, wasmtimeRoot, true);
