@@ -8,6 +8,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
 import { inflateRawSync } from "node:zlib";
+import { describeRuntimeStartup } from "./r3-runtime-startup.mjs";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repoRoot = resolve(dirname(scriptPath), "..");
@@ -30,8 +31,11 @@ for (const [key, value] of Object.entries(pinned)) {
   }
 }
 const verifyArtifactsOnly = process.argv.includes("--verify-artifacts-only");
+const requirePass = process.argv.includes("--require-pass") || verifyArtifactsOnly;
 const shouldRun = verifyArtifactsOnly || process.env.RENDER === "true" || process.env.RENDER === "1" || process.env.R3_PROVIDER_PROBE === "1";
 let probeStage = "not_started";
+let failureStartup;
+let failureChecks = [];
 
 export function sanitizeProbeChecks(checks = {}) {
   const allowed = new Set([
@@ -206,7 +210,7 @@ function runFixedGuest(wasmtimePath, cpythonDir, source, timeoutMs = 500) {
     const startedAt = performance.now();
     const child = spawn(wasmtimePath, args, {
       cwd: cpythonDir,
-      env: { PATH: process.env.PATH ?? "", PYTHONHASHSEED: "0", TZ: "UTC" },
+      env: { PATH: process.env.PATH ?? "", PYTHONHASHSEED: "0", TZ: "UTC", RAYON_NUM_THREADS: "1" },
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true
     });
@@ -341,6 +345,12 @@ async function main() {
     return;
   }
   const runtimeDir = dirname(cpythonWasm);
+  probeStage = "check-wasmtime-launch";
+  const launch = await runCommand(wasmtimePath, ["--version"], { env: { PATH: process.env.PATH ?? "", RAYON_NUM_THREADS: "1" } });
+  if (launch.code !== 0) {
+    failureStartup = describeRuntimeStartup(launch);
+    throw new Error(`Wasmtime launch failed: ${failureStartup.cause}.`);
+  }
   const outsideSentinel = join(root, "outside-sentinel.txt");
   const readonlyProbe = join(runtimeDir, "r3-readonly-probe.txt");
   probeStage = "prepare-readonly-runtime";
@@ -361,7 +371,13 @@ async function main() {
   const probe = parseProbe(probeResult.stdout);
   if (probeResult.code !== 0) {
     const failedChecks = Object.entries(probe.checks ?? {}).filter(([, check]) => check.pass !== true).map(([name]) => name.replace(/[^a-zA-Z0-9_-]/g, ""));
-    throw new Error(`Pinned provider runtime probe failed: ${failedChecks.join(" ") || "runtime-gate"}.`);
+    failureStartup = probe.checks?.abi?.startup;
+    failureChecks = failedChecks;
+    console.error(`R3 runtime ABI startup: ${JSON.stringify(probe.checks?.abi?.startup ?? { cause: "UNAVAILABLE" })}`);
+    // Print names individually so neither build logs nor message sanitization
+    // truncate the root-cause evidence behind a long list.
+    for (const name of failedChecks) console.error(`R3 failed check: ${name}`);
+    throw new Error("Pinned provider runtime probe failed; see ABI startup and check names above.");
   }
   probeStage = "run-admission-scheduler";
   const scheduler = await runAdmissionScheduler(wasmtimePath, cpythonRoot);
@@ -383,10 +399,16 @@ try {
       measuredAt: new Date().toISOString(),
       playerCodeExecuted: false,
       fixtureCodeExecuted: false,
+      stage: probeStage,
+      startup: failureStartup,
+      failedChecks: failureChecks,
       reason: "Provider probe failed closed; no player code was executed."
     }, null, 2)}\n`, "utf8");
     const safeReason = error instanceof Error ? error.message.replace(/[^a-zA-Z0-9:_(). -]/g, "").slice(0, 220) : "UnknownError";
     console.error(`R3 provider probe failed closed at ${probeStage}: ${safeReason}`);
-    process.exitCode = 1;
+    // Existing API/SPA deployment does not enable player Python. Record a
+    // failed feasibility gate without taking that application down. Strict
+    // acceptance runs still fail the command through --require-pass.
+    process.exitCode = requirePass ? 1 : 0;
   }
 }

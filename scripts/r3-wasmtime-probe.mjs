@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { access, readFile, stat } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { describeRuntimeStartup } from "./r3-runtime-startup.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "..");
@@ -140,6 +141,7 @@ if (!wasmtimePath || !cpythonDir || !(await exists(wasmtimePath)) || !(await exi
           SystemRoot: process.env.SystemRoot ?? "",
           PYTHONHASHSEED: "0",
           TZ: "UTC",
+          RAYON_NUM_THREADS: "1",
         },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
@@ -406,7 +408,7 @@ print(json.dumps({'side': SIDE, 'turns': turns, 'statePly': state['ply'], 'memor
   const apiAdmissionPass = apiConcurrentStatuses.length === 2 && apiConcurrentStatuses[0] === 200 && apiConcurrentStatuses[1] === 429;
 
   const checks = {
-    abi: { pass: abiPass, code: abi.code, elapsedMs: abi.elapsedMs, outputBytes: abi.outputBytes },
+    abi: { pass: abiPass, code: abi.code, elapsedMs: abi.elapsedMs, outputBytes: abi.outputBytes, startup: describeRuntimeStartup(abi) },
     environmentIsolation: { pass: environmentPass, value: envValue?.env ?? null },
     filesystemBoundary: { pass: filesystemPass && readonlyMutationPass, observed: { outsideSentinelExists, outsideSentinelOutsideRuntime, guestSentinelPath, guestRead: envValue?.file ?? null, guestWrite: envValue?.write ?? null, readonlyProbeExists, readonlyProbeGuestPath, unlink: readonlyMutationValue?.unlink ?? null, rename: readonlyMutationValue?.rename ?? null } },
     networkIsolation: { pass: networkPass, code: network.code, observed: `${network.stdout}\n${network.stderr}`.trim().slice(0, 240) },

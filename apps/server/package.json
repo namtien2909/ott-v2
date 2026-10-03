@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json && node --test ../../scripts/r3-artifact-pins.test.mjs && node ../../scripts/r3-render-provider-probe.mjs",
+    "probe:r3:provider": "node ../../scripts/r3-render-provider-probe.mjs --require-pass",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config vitest.config.ts",
