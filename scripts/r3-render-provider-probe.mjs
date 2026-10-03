@@ -16,6 +16,7 @@ const artifactManifest = JSON.parse(await readFile(resolve(repoRoot, "docs/r3-ru
 const wasmtime = artifactManifest.artifacts.wasmtime;
 const cpython = artifactManifest.artifacts.cpythonWasi;
 const shouldRun = process.env.RENDER === "true" || process.env.RENDER === "1" || process.env.R3_PROVIDER_PROBE === "1";
+let probeStage = "not_started";
 
 export function sanitizeProbeChecks(checks = {}) {
   const allowed = new Set([
@@ -276,29 +277,39 @@ function buildReport(probe, scheduler) {
 
 async function main() {
   if (!shouldRun) return;
+  probeStage = "prepare-workdir";
   const root = resolve(process.env.R3_PROVIDER_WORKDIR ?? join(tmpdir(), `ottv2-r3-provider-${process.pid}`));
   const wasmtimeArchive = join(root, wasmtime.linuxArchive);
   const cpythonArchive = join(root, cpython.archive);
   const wasmtimeRoot = join(root, "wasmtime");
   const cpythonRoot = join(root, "cpython");
   await mkdir(root, { recursive: true });
+  probeStage = "download-wasmtime";
   await download(wasmtime.linuxArchiveUrl, wasmtimeArchive);
+  probeStage = "download-cpython";
   await download(`https://github.com/brettcannon/cpython-wasi-build/releases/download/v${cpython.version}/${cpython.archive}`, cpythonArchive);
+  probeStage = "verify-archives";
   if ((await sha256(wasmtimeArchive)).toLowerCase() !== wasmtime.linuxArchiveSha256.toLowerCase()) throw new Error("Wasmtime archive hash mismatch.");
   if ((await sha256(cpythonArchive)).toLowerCase() !== cpython.archiveSha256.toLowerCase()) throw new Error("CPython-WASI archive hash mismatch.");
+  probeStage = "extract-wasmtime";
   await extractArchive(wasmtimeArchive, wasmtimeRoot, true);
+  probeStage = "extract-cpython";
   await extractArchive(cpythonArchive, cpythonRoot);
+  probeStage = "locate-runtime";
   const wasmtimePath = await findFile(wasmtimeRoot, wasmtime.linuxBinary);
   const cpythonWasm = await findFile(cpythonRoot, cpython.wasm);
   if (!wasmtimePath || !cpythonWasm) throw new Error("Pinned runtime files were not found after extraction.");
+  probeStage = "verify-runtime-binaries";
   if ((await sha256(wasmtimePath)).toLowerCase() !== wasmtime.linuxBinarySha256.toLowerCase()) throw new Error("Wasmtime binary hash mismatch.");
   if ((await sha256(cpythonWasm)).toLowerCase() !== cpython.wasmSha256.toLowerCase()) throw new Error("CPython-WASI binary hash mismatch.");
   const runtimeDir = dirname(cpythonWasm);
   const outsideSentinel = join(root, "outside-sentinel.txt");
   const readonlyProbe = join(runtimeDir, "r3-readonly-probe.txt");
+  probeStage = "prepare-readonly-runtime";
   await writeFile(outsideSentinel, "outside-sentinel", { flag: "wx" });
   await writeFile(readonlyProbe, "readonly-probe", { flag: "wx" });
   await makeReadOnly(cpythonRoot);
+  probeStage = "run-wasmtime-security-probe";
   const probeResult = await runCommand(process.execPath, [
     resolve(repoRoot, "scripts/r3-wasmtime-probe.mjs"),
     "--wasmtime", wasmtimePath,
@@ -309,8 +320,11 @@ async function main() {
     "--require-pass"
   ], { cwd: repoRoot });
   if (probeResult.code !== 0) throw new Error("Pinned provider runtime probe failed.");
+  probeStage = "parse-wasmtime-security-probe";
   const probe = parseProbe(probeResult.stdout);
+  probeStage = "run-admission-scheduler";
   const scheduler = await runAdmissionScheduler(wasmtimePath, cpythonRoot);
+  probeStage = "write-provider-evidence";
   const report = buildReport(probe, scheduler);
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
   if (report.status !== "PROVEN") throw new Error("Provider runtime evidence did not pass.");
@@ -330,7 +344,7 @@ try {
       fixtureCodeExecuted: false,
       reason: "Provider probe failed closed; no player code was executed."
     }, null, 2)}\n`, "utf8");
-    console.error("R3 provider probe failed closed.");
+    console.error(`R3 provider probe failed closed at ${probeStage}.`);
     process.exitCode = 1;
   }
 }
