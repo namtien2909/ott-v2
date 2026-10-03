@@ -59,6 +59,39 @@
       "applicationApiUnderWasmtimeLoad": "Four pinned Wasmtime fixtures ran outside Fastify; 24 sequential health requests p95 1 ms/max 41 ms and four concurrent requests all 200; local free-class simulation only"
     }
   },
+  "renderFree": {
+    "serviceUrl": "https://ott-v2.onrender.com",
+    "measuredAt": "2026-10-03T03:01:36.988Z",
+    "sourceCommit": "b2748f0",
+    "architecture": "one Render Free Web Service serving the API and SPA",
+    "spa": { "routesChecked": 18, "rootHttpStatus": 200, "assetHttpStatus": 200 },
+    "health": {
+      "httpStatus": 200,
+      "status": "degraded",
+      "database": "ok",
+      "realtime": "degraded/not_configured"
+    },
+    "cors": {
+      "origin": "https://ott-v2.onrender.com",
+      "accessControlAllowOrigin": "https://ott-v2.onrender.com",
+      "wildcard": false
+    },
+    "apiHeadroom": {
+      "sequentialRequests": 24,
+      "concurrentRequests": 4,
+      "sequentialStatuses": [200],
+      "concurrentStatuses": [200],
+      "sequentialP95Ms": 84.4,
+      "allMaxMs": 231.57,
+      "databaseMutated": false
+    },
+    "rollout": {
+      "postDeployRestartObserved": true,
+      "postDeployUptimeSeconds": 36.668,
+      "databaseMutated": false
+    },
+    "scope": "Public API/SPA and provider rollout evidence only; no Bot runner, scheduler, player upload, commit path or restart recovery was enabled"
+  },
   "offline": {
     "probeCommand": "node scripts/r3-pyodide-probe.mjs --pyodide-dir apps/web/public/pyodide --browser <system-chrome> --require-pass",
     "runtimeGate": "PROVEN_FOR_PYODIDE_MODULE_WORKER_PROBE",
@@ -129,15 +162,15 @@
     }
   },
   "boundary": {
-    "status": "PARTIAL_RUNTIME_EVIDENCE_NOT_PRODUCTION_INTEGRATED",
+    "status": "PARTIAL_RUNTIME_EVIDENCE_PROVIDER_API_ONLY",
     "independentReview": { "status": "PASS_FIXTURE_SCOPE", "providerGate": "OPEN", "productionReadiness": false },
     "scope": "Fixed compatibility/security fixtures only; no player Python, Bot Online/Offline gameplay, scheduler, server commit, restart recovery, public audit or persistence path was enabled.",
     "freeOnly": true,
     "paidServiceUsed": false,
     "databaseMutated": false,
-    "deploymentPerformed": false,
+    "deploymentPerformed": true,
     "remainingGates": [
-      "Provider free-class deployment/scheduler/restart evidence is not authorized or available; local simulation cannot stand in for provider hardware.",
+      "Render Free public API/SPA health, CORS, bounded headroom and rollout restart are measured, but this does not prove the isolated Bot runner, scheduler, commit path or restart recovery on provider hardware.",
       "Production Bot Online/Offline integration remains later R9/R10/R11 scope.",
       "Optional Pyodide lock-catalog packages are not shipped; pinned runtime license texts are checked in and hash-recorded in the public bundle."
     ]

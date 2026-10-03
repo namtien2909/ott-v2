@@ -13,7 +13,7 @@
   ],
   "promptedNext": null,
   "promptedCurrent": null,
-  "blockedReason": "Provider free-class hardware/scheduler/restart evidence requires separate deployment authorization; the local four-guest simulation is not a provider measurement.",
+  "blockedReason": "Render Free public API/SPA health, CORS, bounded headroom and rollout restart are measured; the isolated Bot runner, scheduler, commit path and restart recovery are not deployed or evidenced, so R3 remains blocked until the later R9/R10/R11 integration gates.",
   "evidence": {
     "R1": {
       "status": "DONE",
@@ -28,7 +28,7 @@
     "R3": {
       "status": "BLOCKED",
       "source": "docs/implementation_plan_ott_v0.2_robot_lab.md#8.3",
-      "summary": "SDK/scorer/harness and frozen protocol pass; Wasmtime/CPython-WASI and Pyodide probes pass with supplied-sentinel, readonly unlink/rename, SDK-shaped whole-match, independent per-turn reset, single-admission, four-guest Fastify-under-load and distinct-origin Offline fixture evidence; independent fixture review passes, while provider free-class deployment/scheduler evidence remains outside local authorization.",
+      "summary": "SDK/scorer/harness and frozen protocol pass; Wasmtime/CPython-WASI and Pyodide probes pass with supplied-sentinel, readonly unlink/rename, SDK-shaped whole-match, independent per-turn reset, single-admission, four-guest Fastify-under-load and distinct-origin Offline fixture evidence; independent fixture review passes; one Render Free Web Service now has 18/18 public routes, SPA asset 200, health/database 200/ok, exact CORS, bounded 24+4 API headroom and rollout restart evidence, while isolated Bot runner/scheduler/commit/restart recovery remain unimplemented.",
       "focusedTests": "17/17 PASS",
       "workspaceUnitContract": "15 files / 76 tests PASS",
       "typecheck": "PASS",
@@ -46,10 +46,21 @@
       "nfkcValidator": "PASS_FULLWIDTH_REFLECTION_TESTS",
       "publicBundleLicenses": "PASS_FOUR_HASHED_TEXTS",
       "remainingGates": [
-        "Provider free-class deployment/scheduler/restart evidence is not authorized or available; local simulation passes but cannot stand in for provider hardware",
+        "Render Free public API/SPA and rollout evidence is present, but isolated Bot runner/scheduler/commit/restart recovery on provider hardware remains unproven",
         "Production Bot Online/Offline integration remains R9/R10/R11 scope"
-      ]
+      ],
+      "renderFree": {
+        "source": "docs/r3-runtime-evidence.json#renderFree",
+        "serviceUrl": "https://ott-v2.onrender.com",
+        "sourceCommit": "b2748f0",
+        "routesChecked": 18,
+        "health": "200/degraded; database ok; realtime disabled",
+        "cors": "exact https://ott-v2.onrender.com; wildcard false",
+        "apiHeadroom": "24 sequential + 4 concurrent; all 200; p95 84.4ms; max 231.57ms",
+        "rolloutRestart": "observed post-deploy uptime 36.668s",
+        "databaseMutated": false
+      }
     }
   },
-"updatedAt": "2026-10-03T09:28:50.5279787+07:00"
+"updatedAt": "2026-10-03T10:01:36.988+07:00"
 }
