@@ -14,6 +14,7 @@ const scriptPath = fileURLToPath(import.meta.url);
 const repoRoot = resolve(dirname(scriptPath), "..");
 const reportPath = resolve(repoRoot, "apps/server/dist/r3-provider-evidence.json");
 const artifactManifest = JSON.parse(await readFile(resolve(repoRoot, "docs/r3-runtime-artifacts.json"), "utf8"));
+const botLimitManifest = JSON.parse(await readFile(resolve(repoRoot, "docs/r3-bot-limit-manifest.json"), "utf8"));
 // Use the checked-in manifest as the single source of release pins. Validate
 // their format before downloading so a truncated digest fails immediately.
 const pinned = {
@@ -201,9 +202,9 @@ function parseProbe(stdout) {
   }
 }
 
-function runFixedGuest(wasmtimePath, cpythonDir, source, timeoutMs = 500) {
+function runFixedGuest(wasmtimePath, cpythonDir, source, timeoutMs = 500, fuel = 300_000_000) {
   const args = [
-    "run", "--dir", ".::/", "-W", "fuel=300000000", "-W", `timeout=${timeoutMs}ms`,
+    "run", "--dir", ".::/", "-W", `fuel=${fuel}`, "-W", `timeout=${timeoutMs}ms`,
     "-W", "max-memory-size=67108864", "-W", "trap-on-grow-failure=y", "--env", "PYTHONHASHSEED=0", "--env", "TZ=UTC",
     "python.wasm", "-c", source
   ];
@@ -235,7 +236,7 @@ function runFixedGuest(wasmtimePath, cpythonDir, source, timeoutMs = 500) {
   });
 }
 
-async function runAdmissionScheduler(wasmtimePath, cpythonDir) {
+async function runAdmissionScheduler(wasmtimePath, cpythonDir, startupFuel) {
   const fixedSource = "import json\nprint(json.dumps({'fixture':'r3-provider','ok':True}, separators=(',', ':')))";
   const pending = [];
   const results = [];
@@ -251,7 +252,7 @@ async function runAdmissionScheduler(wasmtimePath, cpythonDir) {
       if (!job) break;
       active += 1;
       maxActive = Math.max(maxActive, active);
-      runFixedGuest(wasmtimePath, cpythonDir, fixedSource).then((result) => {
+      runFixedGuest(wasmtimePath, cpythonDir, fixedSource, 500, startupFuel).then((result) => {
         active -= 1;
         results.push({ id: job.id, code: result.code, elapsedMs: result.elapsedMs, validOutput: result.stdout.includes('"ok":true') });
         job.resolve();
@@ -382,7 +383,7 @@ async function main() {
     throw new Error("Pinned provider runtime probe failed; see ABI startup and check names above.");
   }
   probeStage = "run-admission-scheduler";
-  const scheduler = await runAdmissionScheduler(wasmtimePath, cpythonRoot);
+  const scheduler = await runAdmissionScheduler(wasmtimePath, cpythonRoot, botLimitManifest.limits.wasmStartupFuel ?? 2_000_000_000);
   probeStage = "write-provider-evidence";
   const report = buildReport(probe, scheduler);
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
