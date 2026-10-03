@@ -202,7 +202,7 @@ if (!wasmtimePath || !cpythonDir || !(await exists(wasmtimePath)) || !(await exi
   }
 
   const abiSource = "import json\nstate = {'turn': 'BLUE', 'legalMoves': [{'from': 'a1', 'to': 'b2'}]}\nmemory = {'seen': 1}\ndef choose_move(state, memory):\n    return {'move': state['legalMoves'][0], 'memory': memory}\nprint(json.dumps(choose_move(state, memory), separators=(',', ':')))";
-  const deterministicSource = "import json\nstate = {'legalMoves': [{'from': 'a1', 'to': 'b2'}, {'from': 'a1', 'to': 'a2'}]}\ndef choose_move(seed, state):\n    index = seed % len(state['legalMoves'])\n    return {'seed': seed, 'moveIndex': index, 'move': state['legalMoves'][index]}\nprint(json.dumps(choose_move(42, state), separators=(',', ':')))";
+  const deterministicSource = "state = {'legalMoves': [{'from': 'a1', 'to': 'b2'}, {'from': 'a1', 'to': 'a2'}]}\ndef choose_move(seed, state):\n    index = seed % len(state['legalMoves'])\n    move = state['legalMoves'][index]\n    return str(seed) + ':' + move['from'] + '>' + move['to']\nprint(choose_move(42, state))";
   const alternateDeterministicSource = deterministicSource.replace("choose_move(42, state)", "choose_move(43, state)");
   // The whole-match fixture must exercise the SDK-shaped entry point, state,
   // legal-move validation and persistent memory on every turn.  It stays in
