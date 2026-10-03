@@ -13,19 +13,24 @@ const scriptPath = fileURLToPath(import.meta.url);
 const repoRoot = resolve(dirname(scriptPath), "..");
 const reportPath = resolve(repoRoot, "apps/server/dist/r3-provider-evidence.json");
 const artifactManifest = JSON.parse(await readFile(resolve(repoRoot, "docs/r3-runtime-artifacts.json"), "utf8"));
-// Immutable release pins keep a stale build-cache copy of the manifest from
-// weakening verification. The manifest remains the human-readable provenance
-// record; a different byte digest still fails closed.
+// Use the checked-in manifest as the single source of release pins. Validate
+// their format before downloading so a truncated digest fails immediately.
 const pinned = {
-  wasmtimeLinuxArchive: "wasmtime-v49.0.2-x86_64-linux.tar.xz",
-  wasmtimeLinuxArchiveUrl: "https://github.com/bytecodealliance/wasmtime/releases/download/v49.0.2/wasmtime-v49.0.2-x86_64-linux.tar.xz",
-  wasmtimeLinuxArchiveSha256: "a4d6e9e3a5a60f527cf7793d674c48930c80c2e8977995b8a275cad3254b932",
-  wasmtimeLinuxBinarySha256: "d0a014e0d5b0cf48dd3549c38e2e6ecd78ff09fb3e3f10d751b87b72bdfd8635",
-  cpythonArchive: "python-3.14.7-wasi_sdk-24.zip",
-  cpythonArchiveSha256: "2e064d3fb8172471d39d741348efa722349c40b96301f69968dff714999c584b",
-  cpythonWasmSha256: "d24bd98d3071af6b17d51d53a08700b9acef59172a0afcb6adb733645c2a1715"
+  wasmtimeLinuxArchive: artifactManifest.artifacts.wasmtime.linuxArchive,
+  wasmtimeLinuxArchiveUrl: artifactManifest.artifacts.wasmtime.linuxArchiveUrl,
+  wasmtimeLinuxArchiveSha256: artifactManifest.artifacts.wasmtime.linuxArchiveSha256,
+  wasmtimeLinuxBinarySha256: artifactManifest.artifacts.wasmtime.linuxBinarySha256,
+  cpythonArchive: artifactManifest.artifacts.cpythonWasi.archive,
+  cpythonArchiveSha256: artifactManifest.artifacts.cpythonWasi.archiveSha256,
+  cpythonWasmSha256: artifactManifest.artifacts.cpythonWasi.wasmSha256
 };
-const shouldRun = process.env.RENDER === "true" || process.env.RENDER === "1" || process.env.R3_PROVIDER_PROBE === "1";
+for (const [key, value] of Object.entries(pinned)) {
+  if (key.endsWith("Sha256") && !/^[a-f0-9]{64}$/.test(value)) {
+    throw new Error(`Invalid SHA-256 pin: ${key}; expected 64 hexadecimal characters.`);
+  }
+}
+const verifyArtifactsOnly = process.argv.includes("--verify-artifacts-only");
+const shouldRun = verifyArtifactsOnly || process.env.RENDER === "true" || process.env.RENDER === "1" || process.env.R3_PROVIDER_PROBE === "1";
 let probeStage = "not_started";
 
 export function sanitizeProbeChecks(checks = {}) {
@@ -52,8 +57,9 @@ function runCommand(command, args, options = {}) {
     const collect = (target, chunk) => {
       if (bytes >= 2_000_000) return;
       const buffer = Buffer.from(chunk);
-      bytes += buffer.byteLength;
-      target.push(buffer.subarray(0, Math.max(0, 2_000_000 - bytes)));
+      const captured = buffer.subarray(0, 2_000_000 - bytes);
+      bytes += captured.byteLength;
+      target.push(captured);
     };
     child.stdout.on("data", (chunk) => collect(stdout, chunk));
     child.stderr.on("data", (chunk) => collect(stderr, chunk));
@@ -330,6 +336,10 @@ async function main() {
   probeStage = "verify-runtime-binaries";
   if ((await sha256(wasmtimePath)).toLowerCase() !== pinned.wasmtimeLinuxBinarySha256) throw new Error("Wasmtime binary hash mismatch.");
   if ((await sha256(cpythonWasm)).toLowerCase() !== pinned.cpythonWasmSha256) throw new Error("CPython-WASI binary hash mismatch.");
+  if (verifyArtifactsOnly) {
+    console.log(JSON.stringify({ status: "PASS", scope: "artifact-verification-only", wasmtimeArchiveSha256, cpythonArchiveSha256, wasmtimeBinarySha256: pinned.wasmtimeLinuxBinarySha256, cpythonWasmSha256: pinned.cpythonWasmSha256, fixtureCodeExecuted: false, playerCodeExecuted: false }));
+    return;
+  }
   const runtimeDir = dirname(cpythonWasm);
   const outsideSentinel = join(root, "outside-sentinel.txt");
   const readonlyProbe = join(runtimeDir, "r3-readonly-probe.txt");
@@ -347,9 +357,12 @@ async function main() {
     "--wasmtime-sha256", pinned.wasmtimeLinuxBinarySha256,
     "--require-pass"
   ], { cwd: repoRoot });
-  if (probeResult.code !== 0) throw new Error("Pinned provider runtime probe failed.");
   probeStage = "parse-wasmtime-security-probe";
   const probe = parseProbe(probeResult.stdout);
+  if (probeResult.code !== 0) {
+    const failedChecks = Object.entries(probe.checks ?? {}).filter(([, check]) => check.pass !== true).map(([name]) => name.replace(/[^a-zA-Z0-9_-]/g, ""));
+    throw new Error(`Pinned provider runtime probe failed: ${failedChecks.join(" ") || "runtime-gate"}.`);
+  }
   probeStage = "run-admission-scheduler";
   const scheduler = await runAdmissionScheduler(wasmtimePath, cpythonRoot);
   probeStage = "write-provider-evidence";

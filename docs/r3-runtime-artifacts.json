@@ -14,7 +14,7 @@
       "binarySha256": "51165ae46e2e4ca71b52efff33432d9e58db41bf236cb7c768adb03f653a7152",
       "linuxArchive": "wasmtime-v49.0.2-x86_64-linux.tar.xz",
       "linuxArchiveUrl": "https://github.com/bytecodealliance/wasmtime/releases/download/v49.0.2/wasmtime-v49.0.2-x86_64-linux.tar.xz",
-      "linuxArchiveSha256": "a4d6e9e3a5a60f527cf7793d674c48930c80c2e8977995b8a275cad3254b932",
+      "linuxArchiveSha256": "a4d6e9e3a5a60f527cf7793d674c48930c80c2e8977995b8a275cad3254b9322",
       "linuxBinary": "wasmtime",
       "linuxBinarySha256": "d0a014e0d5b0cf48dd3549c38e2e6ecd78ff09fb3e3f10d751b87b72bdfd8635"
     },
