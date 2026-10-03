@@ -60,6 +60,7 @@ export const R3ProviderFailureSchema = z.object({
   reason: z.literal("Provider probe failed closed; no player code was executed."),
   stage: z.string().regex(/^[a-z-]+$/),
   failedChecks: z.array(z.string().regex(/^[a-zA-Z0-9_-]+$/)),
+  checks: z.record(z.string(), R3ProviderCheckSchema).optional(),
   startup: z.object({
     cause: z.enum(["HOST_STARTUP_TIMEOUT", "GLIBC_VERSION_UNAVAILABLE", "SHARED_LIBRARY_UNAVAILABLE", "EXECUTABLE_UNAVAILABLE", "EXECUTION_PERMISSION_DENIED", "HOST_THREAD_RESOURCE_FAILURE", "PYTHON_RUNTIME_LAYOUT_FAILURE", "GUEST_BUDGET_EXCEEDED", "HOST_PROCESS_ABORTED", "HOST_PROCESS_KILLED", "OK", "UNCLASSIFIED_STARTUP_FAILURE"]),
     code: z.number().int().nullable(),

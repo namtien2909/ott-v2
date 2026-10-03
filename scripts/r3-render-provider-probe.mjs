@@ -36,6 +36,7 @@ const shouldRun = verifyArtifactsOnly || process.env.RENDER === "true" || proces
 let probeStage = "not_started";
 let failureStartup;
 let failureChecks = [];
+let failureObservedChecks = {};
 
 export function sanitizeProbeChecks(checks = {}) {
   const allowed = new Set([
@@ -373,6 +374,7 @@ async function main() {
     const failedChecks = Object.entries(probe.checks ?? {}).filter(([, check]) => check.pass !== true).map(([name]) => name.replace(/[^a-zA-Z0-9_-]/g, ""));
     failureStartup = probe.checks?.abi?.startup;
     failureChecks = failedChecks;
+    failureObservedChecks = sanitizeProbeChecks(probe.checks);
     console.error(`R3 runtime ABI startup: ${JSON.stringify(probe.checks?.abi?.startup ?? { cause: "UNAVAILABLE" })}`);
     // Print names individually so neither build logs nor message sanitization
     // truncate the root-cause evidence behind a long list.
@@ -402,6 +404,7 @@ try {
       stage: probeStage,
       startup: failureStartup,
       failedChecks: failureChecks,
+      checks: failureObservedChecks,
       reason: "Provider probe failed closed; no player code was executed."
     }, null, 2)}\n`, "utf8");
     const safeReason = error instanceof Error ? error.message.replace(/[^a-zA-Z0-9:_(). -]/g, "").slice(0, 220) : "UnknownError";

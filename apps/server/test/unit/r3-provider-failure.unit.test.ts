@@ -23,4 +23,15 @@ describe("provider failure report", () => {
     });
     expect(report.startup?.cause).toBe("HOST_PROCESS_ABORTED");
   });
+
+  it("accepts safe failed-check measurements without raw guest output", () => {
+    const report = R3ProviderResponseSchema.parse({
+      schemaVersion: 1, status: "NOT_PROVEN", runtimeGate: "NOT_PROVEN",
+      measuredAt: "2026-10-03T00:00:00.000Z", playerCodeExecuted: false, fixtureCodeExecuted: false,
+      reason: "Provider probe failed closed; no player code was executed.", stage: "parse-wasmtime-security-probe",
+      failedChecks: ["determinism"], checks: { determinism: { pass: false, sameSeedSameState: false, differentSeedChangesResult: true } }
+    });
+    expect(report.checks?.determinism?.sameSeedSameState).toBe(false);
+    expect(JSON.stringify(report)).not.toContain("source");
+  });
 });
