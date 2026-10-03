@@ -300,6 +300,11 @@ print(json.dumps({'side': SIDE, 'turns': turns, 'statePly': state['ply'], 'memor
   const deterministicB = await runGuest(deterministicSource, { fuel: 1_000_000_000, timeoutMs: 1000 });
   const deterministicC = await runGuest(alternateDeterministicSource, { fuel: 1_000_000_000, timeoutMs: 1000 });
   const determinismPass = deterministicA.code === 0 && deterministicB.code === 0 && deterministicC.code === 0 && deterministicA.stdout === deterministicB.stdout && deterministicA.stdout !== deterministicC.stdout;
+  const deterministicOutputHashes = {
+    sameSeedA: createHash("sha256").update(deterministicA.stdout).digest("hex"),
+    sameSeedB: createHash("sha256").update(deterministicB.stdout).digest("hex"),
+    differentSeed: createHash("sha256").update(deterministicC.stdout).digest("hex")
+  };
 
   const headroomRuns = [];
   for (let index = 0; index < 12; index += 1) headroomRuns.push(await runGuest(abiSource));
@@ -420,7 +425,7 @@ print(json.dumps({'side': SIDE, 'turns': turns, 'statePly': state['ply'], 'memor
     outputBudget: { pass: outputBudgetPass, outputBytes: flood.outputBytes, manifestOutputBytes: limits.outputBytes, terminated: flood.outputExceeded },
     cancellation: { pass: cancellationPass, cancelled: cancelled.cancelled, code: cancelled.code, elapsedMs: cancelled.elapsedMs },
     killReclaim: { pass: reclaimPass, code: reclaim.code, elapsedMs: reclaim.elapsedMs },
-    determinism: { pass: determinismPass, sameSeedSameState: deterministicA.stdout === deterministicB.stdout, differentSeedChangesResult: deterministicA.stdout !== deterministicC.stdout },
+    determinism: { pass: determinismPass, sameSeedSameState: deterministicA.stdout === deterministicB.stdout, differentSeedChangesResult: deterministicA.stdout !== deterministicC.stdout, ...deterministicOutputHashes },
     headroom: { pass: headroomPass, count: headroomRuns.length, minMs: headroomTimes[0], p95Ms: headroomTimes[p95Index], maxMs: headroomTimes.at(-1), failures: headroomRuns.filter((run) => run.code !== 0).length },
     wholeMatchBudget: {
       pass: wholeMatchPass,

@@ -44,7 +44,7 @@ export function sanitizeProbeChecks(checks = {}) {
     "blueRounds", "redRounds", "blueRuntimeMs", "redRuntimeMs", "blueFixtureTurnP95Ms",
     "redFixtureTurnP95Ms", "blueFixtureTurnMaxMs", "redFixtureTurnMaxMs", "entrypointCallsPerSide",
     "memoryUpdatesPerSide", "capacity", "firstGranted", "secondRejected", "activeAfterRelease", "requests",
-    "concurrentStatuses", "concurrentElapsedMs", "databaseMutated", "sameSeedSameState", "differentSeedChangesResult",
+    "concurrentStatuses", "concurrentElapsedMs", "databaseMutated", "sameSeedSameState", "differentSeedChangesResult", "sameSeedA", "sameSeedB", "differentSeed",
     "consecutiveTimeouts", "resetTurn"
   ]);
   return Object.fromEntries(Object.entries(checks).map(([name, value]) => {
