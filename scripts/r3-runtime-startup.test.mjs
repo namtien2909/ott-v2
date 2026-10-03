@@ -9,7 +9,8 @@ test("runtime startup distinguishes host timeout, loader failure and guest quota
 });
 
 test("runtime startup keeps a provider process abort separate from guest quota", () => {
-  assert.equal(describeRuntimeStartup({ code: 134, signal: null, stderr: "all fuel consumed" }).cause, "HOST_PROCESS_ABORTED");
+  assert.equal(describeRuntimeStartup({ code: 134, signal: null, stderr: "all fuel consumed" }).cause, "GUEST_BUDGET_EXCEEDED");
+  assert.equal(describeRuntimeStartup({ code: 134, signal: null, stderr: "" }).cause, "HOST_PROCESS_ABORTED");
 });
 
 test("runtime startup diagnostics do not expose raw output or private paths", () => {
