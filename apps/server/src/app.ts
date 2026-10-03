@@ -73,8 +73,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const metrics = options.metrics ?? new MetricsRegistry();
 
   await registerCors(app, env.corsOrigins);
-  await registerWebApp(app);
   registerErrorHandler(app);
+  // Register API diagnostics before the SPA catch-all so provider evidence
+  // remains reachable even on Fastify/router versions that prefer insertion
+  // order when resolving wildcard GET routes.
+  await registerR3ProviderRoute(app);
+  await registerWebApp(app);
   await registerAuthRoutes(app, auth, env);
   await registerProfileRoutes(app, auth, social);
   await registerRoomRoutes(app, auth, rooms);
@@ -84,7 +88,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerSocialRoutes(app, auth, social);
   await registerGuestImportRoutes(app, auth, guestImport, env.NODE_ENV === "production");
   await registerMetricsRoute(app, metrics);
-  await registerR3ProviderRoute(app);
   await registerHealthRoute(app, new HealthService(database, realtime));
   app.addHook("onReady", async () => realtime.start());
   const requestStarts = new Map<string, number>();
