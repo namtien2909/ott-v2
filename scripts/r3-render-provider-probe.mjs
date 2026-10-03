@@ -350,7 +350,7 @@ async function main() {
 
 try {
   await main();
-} catch {
+} catch (error) {
   if (shouldRun) {
     await mkdir(dirname(reportPath), { recursive: true });
     await writeFile(reportPath, `${JSON.stringify({
