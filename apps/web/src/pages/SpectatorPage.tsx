@@ -7,6 +7,7 @@ import { GameBoard } from "../components/board";
 import { Button, LoadingState, UiGlyph } from "../components/ui";
 import { ApiError } from "../services/http/apiError";
 import { getSpectatorMatch, requestSpectator, subscribeToSpectator, leaveSpectator } from "../services/rooms/spectatorApi";
+import { ensureGuestSession } from "../services/guest/guestApi";
 
 type SpectatorActivity = { id: string; kind: "move" | "combat" | "sync"; label: string; detail: string };
 type SpectatorState =
@@ -76,6 +77,7 @@ export default function SpectatorPage() {
     setPending(true);
     setState({ kind: "loading" });
     try {
+      await ensureGuestSession().catch(() => undefined);
       await requestSpectator(roomId, nextPassword);
       const result = await getSpectatorMatch(roomId);
       setState({ kind: "ready", roomName: result.room.name, spectatorCount: result.spectatorCount, match: result.match, connection: "connected", activities: [snapshotActivity(result.match, "MATCH_SNAPSHOT")] });

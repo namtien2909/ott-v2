@@ -1,0 +1,67 @@
+{
+  "manifestVersion": "r3-2026-10-03",
+  "sdkVersion": "0.1.0",
+  "schemaVersion": "1",
+  "status": "RUNTIME_PROVEN_FOR_PINNED_PROBES_PENDING_FREE_CLASS_REVIEW",
+  "freeOnly": true,
+  "limits": {
+    "sourceBytes": 65536,
+    "memoryBytes": 8192,
+    "memoryDepth": 32,
+    "outputBytes": 16384,
+    "outputIncludesMemory": true,
+    "privateLogBytes": 16384,
+    "uploadBytes": 65536,
+    "preflightMs": 250,
+    "perTurnMs": 500,
+    "wholeMatchMs": 30000,
+    "maxTurns": 120,
+    "maxPlies": 120,
+    "maxRounds": 60,
+    "wholeMatchClockMode": "ACTIVE_COMPUTE",
+    "wasmFuel": 300000000,
+    "wasmEpochTicks": 500,
+    "wasmMemoryPages": 1024,
+    "wasmStackBytes": 1048576,
+    "ioBytes": 0,
+    "network": false,
+    "filesystem": false,
+    "secrets": false,
+    "applicationMounts": false,
+    "deterministicSeed": true,
+    "admission": "single"
+  },
+  "measurement": {
+    "measuredAt": "2026-10-03T02:13:51.948Z",
+    "node": "v24.13.0",
+    "platform": "win32",
+    "arch": "x64",
+    "cpuCount": 8,
+    "totalMemoryBytes": 8299257856,
+    "freeMemoryBytesAtProbe": 1434116096,
+    "wasmtimeInstalled": false,
+    "cpythonWasiInstalled": false,
+    "pyodideBundleCheckedIn": true,
+    "playerCodeExecuted": false,
+    "runtimeGate": "PINNED_PROBES_PASS_CROSS_ORIGIN_OFFLINE_REVIEW_OPEN",
+    "runtimeArtifactsProbed": {
+      "wasmtimeCpythonWasi": true,
+      "wasmtimeWholeMatch": true,
+      "wasmtimeAdmission": true,
+      "pyodideModuleWorker": true,
+      "pyodideCrossOriginCompartment": true,
+      "fastifyApplicationApiHeadroom": true,
+      "fastifyApiUnderWasmtimeLoad": true,
+      "publicBundleLicenseTexts": true
+    }
+  },
+  "candidateRuntimes": {
+    "online": "WASMTIME_SUPERVISOR_CPYTHON_WASI",
+    "offline": "PYODIDE_MODULE_WORKER"
+  },
+  "notes": [
+    "This freezes equal protocol limits for later R9/R10/R11 work; the pinned runtime probes are feasibility evidence, not production Bot integration or an approval to execute arbitrary player code.",
+    "Wasmtime/CPython-WASI candidate artifacts are pinned outside the host PATH and were re-verified before the online fixtures; host command presence remains false. Pyodide assets are self-hosted under apps/web/public/pyodide.",
+    "The probes execute fixed compatibility fixtures only; playerCodeExecuted remains false. Production scheduler, API commit path, restart recovery and public privacy integration remain later Wave scope."
+  ]
+}

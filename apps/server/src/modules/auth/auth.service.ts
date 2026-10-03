@@ -14,8 +14,10 @@ import { createOpaqueToken, createRecoveryCode, hashSecret, hashToken, verifySec
 import { AuthThrottle } from "./auth.throttle.js";
 
 const SESSION_COOKIE = "ottv2_session";
+const GUEST_SESSION_COOKIE = "ottv2_guest";
 const SHORT_SESSION_MS = 24 * 60 * 60 * 1000;
 const LONG_SESSION_MS = 30 * SHORT_SESSION_MS;
+const MAX_GUEST_SESSIONS = 10_000;
 
 type UserWithData = User & { profile: UserProfile | null; stats: UserStats | null };
 
@@ -40,7 +42,9 @@ export type PublicProfile = {
   recentForm: Array<"WIN" | "LOSS">;
 };
 
-export type AuthContext = { session: Session; user: UserWithData };
+export type AuthPrincipal = "ACCOUNT" | "GUEST";
+export type AuthContext = { session: Session; user: UserWithData; principal: AuthPrincipal };
+type GuestSession = { context: AuthContext; expiresAt: number };
 
 const includeData = { profile: true, stats: true } as const;
 
@@ -84,8 +88,62 @@ function unavailable(): never {
 
 export class AuthService {
   readonly throttle = new AuthThrottle();
+  private readonly guestSessions = new Map<string, GuestSession>();
 
   constructor(private readonly db?: PrismaClient) {}
+
+  createGuestSession(input: { clientId: string; displayName: string }): { token: string; displayName: string } {
+    const nowMs = Date.now();
+    for (const [key, entry] of this.guestSessions) if (entry.expiresAt <= nowMs) this.guestSessions.delete(key);
+    if (this.guestSessions.size >= MAX_GUEST_SESSIONS) throw new AppError("RATE_LIMITED", "Hệ thống Guest đang quá tải. Hãy thử lại sau.", 429, true, "RECOVERABLE");
+    const token = createOpaqueToken();
+    // The browser profile id helps the client keep a display label stable, but
+    // never becomes the server principal key. Only this server-generated token
+    // identifies the Guest, so guessing another client's id cannot impersonate it.
+    const suffix = hashToken(token).slice(0, 10);
+    const now = new Date();
+    const user = {
+      id: `guest:${suffix}`,
+      fullName: input.displayName,
+      displayName: input.displayName,
+      username: `guest_${suffix}`,
+      usernameNormalized: `guest_${suffix}`,
+      passwordHash: "",
+      recoveryCodeHash: "",
+      recoveryUsedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      profile: null,
+      stats: null,
+    } as unknown as UserWithData;
+    const session = {
+      id: `guest-session:${suffix}`,
+      userId: user.id,
+      tokenHash: hashToken(token),
+      remember: true,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      revokedAt: null,
+      createdAt: now,
+      lastUsedAt: now,
+    } as Session;
+    const context: AuthContext = { session, user, principal: "GUEST" };
+    this.guestSessions.set(hashToken(token), { context, expiresAt: session.expiresAt.getTime() });
+    return { token, displayName: input.displayName };
+  }
+
+
+  isGuest(context: AuthContext): boolean { return context.principal === "GUEST"; }
+
+  async authenticateAny(accountToken: string | undefined, guestToken: string | undefined): Promise<AuthContext> {
+    if (accountToken) return this.authenticate(accountToken);
+    if (!guestToken) return this.authenticate(undefined);
+    const entry = this.guestSessions.get(hashToken(guestToken));
+    if (!entry || entry.expiresAt <= Date.now()) {
+      if (entry) this.guestSessions.delete(hashToken(guestToken));
+      throw new AppError("UNAUTHORIZED", "Phiên khách đã hết hạn. Hãy tạo lại phiên khách.", 401, false, "FATAL_SESSION");
+    }
+    return entry.context;
+  }
 
   private requireDb(): PrismaClient {
     if (!this.db) unavailable();
@@ -143,7 +201,7 @@ export class AuthService {
     const user = await db.user.findUnique({ where: { id: session.userId }, include: includeData });
     if (!user) throw new AppError("UNAUTHORIZED", "Tài khoản không còn tồn tại.", 401, false, "FATAL_SESSION");
     await db.session.update({ where: { id: session.id }, data: { lastUsedAt: new Date() } });
-    return { session, user };
+    return { session, user, principal: "ACCOUNT" };
   }
 
   async logout(token: string | undefined): Promise<void> {
@@ -204,4 +262,4 @@ export class AuthService {
   }
 }
 
-export { SESSION_COOKIE };
+export { GUEST_SESSION_COOKIE, SESSION_COOKIE };

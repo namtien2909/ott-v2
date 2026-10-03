@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "wave": "R3",
+  "freeOnly": true,
+  "artifacts": {
+    "wasmtime": {
+      "version": "49.0.2",
+      "source": "https://github.com/bytecodealliance/wasmtime",
+      "release": "https://github.com/bytecodealliance/wasmtime/releases/tag/v49.0.2",
+      "license": "Apache-2.0 WITH LLVM-exception",
+      "archive": "wasmtime-v49.0.2-x86_64-windows.zip",
+      "archiveSha256": "c95a3925acde6398808baabe5ad13d0b1df02b004bc256c00cf8e2a36daccea8",
+      "binary": "wasmtime.exe",
+      "binarySha256": "51165ae46e2e4ca71b52efff33432d9e58db41bf236cb7c768adb03f653a7152"
+    },
+    "cpythonWasi": {
+      "version": "3.14.7",
+      "source": "https://github.com/brettcannon/cpython-wasi-build",
+      "release": "https://github.com/brettcannon/cpython-wasi-build/releases/tag/v3.14.7",
+      "runtimeLicense": "Python Software Foundation License 2.0",
+      "buildRepositoryLicense": "MIT",
+      "archive": "python-3.14.7-wasi_sdk-24.zip",
+      "archiveSha256": "2e064d3fb8172471d39d741348efa722349c40b96301f69968dff714999c584b",
+      "wasm": "python.wasm",
+      "wasmSha256": "d24bd98d3071af6b17d51d53a08700b9acef59172a0afcb6adb733645c2a1715",
+      "wasmBytes": 30522756
+    },
+    "pyodide": {
+      "version": "0.27.3",
+      "source": "https://github.com/pyodide/pyodide",
+      "package": "https://www.npmjs.com/package/pyodide/v/0.27.3",
+      "license": "MPL-2.0",
+      "selfHostedPath": "apps/web/public/pyodide",
+      "publicNotice": "apps/web/public/pyodide/NOTICE.md",
+      "assets": {
+        "pyodide.mjs": { "bytes": 13828, "sha256": "9f54a615c20b2aeb0514d25adbd5ae4c098f8604be1291959e760b6e85e8bc36" },
+        "pyodide.asm.js": { "bytes": 1253506, "sha256": "0ea527c5d589df084d79f306ddc9f99f1f67bb7d6529008c10d1a324a1a6dc22" },
+        "pyodide.asm.wasm": { "bytes": 10103006, "sha256": "abf462b9236af720a276be5a9db980aa31871972a323525abd33c1978cf844ce" },
+        "python_stdlib.zip": { "bytes": 2358654, "sha256": "cad21b7df47ac3d6efe8d97f0654feec8a51b089046100e9d21fba5954700a21" },
+        "pyodide-lock.json": { "bytes": 108706, "sha256": "bb75898cd30da9530e25a9cb7336755db7c3cc85ddd0e3da20ae794a589b3972" }
+      }
+    }
+  },
+  "notices": "docs/r3-runtime-notices.md",
+  "provenance": "Hashes were independently re-verified against the exact artifacts used by the R3 probes. Temporary download paths are intentionally not part of the repository contract. The Wasmtime archive and extracted binary digest now match the checked-in pin."
+}

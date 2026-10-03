@@ -34,13 +34,58 @@ export async function registerMatchmakingRoutes(app: FastifyInstance, auth: Auth
     const context = await auth.authenticate(readCookie(request));
     const userId = context.user.id;
     const queueId = request.params.queueId;
+    const initial = matchmaking.snapshotEvent(queueId, userId);
     const raw = reply.raw;
     reply.hijack();
-    raw.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive", "Access-Control-Allow-Origin": "http://localhost:3000", "Access-Control-Allow-Credentials": "true" });
-    const send = (event: unknown) => { const parsed = MatchmakingEventEnvelopeSchema.safeParse(event); if (parsed.success) raw.write(`data: ${JSON.stringify(parsed.data)}\n\n`); };
-    const unsubscribe = matchmaking.subscribe(queueId, send);
-    send(matchmaking.snapshotEvent(queueId, userId));
-    const timer = setInterval(() => { matchmaking.tick(queueId, userId); }, 1000);
-    request.raw.on("close", () => { clearInterval(timer); unsubscribe(); });
+    for (const [name, value] of Object.entries(reply.getHeaders())) {
+      if (value !== undefined) raw.setHeader(name, value);
+    }
+    raw.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", Connection: "keep-alive" });
+    let closed = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    let unsubscribe = () => {};
+    const cleanup = () => {
+      if (closed) return;
+      closed = true;
+      if (timer !== undefined) clearInterval(timer);
+      unsubscribe();
+      request.raw.off("close", onRequestClose);
+      raw.off("close", cleanup);
+    };
+    const close = () => {
+      if (closed) return;
+      cleanup();
+      if (!raw.writableEnded && !raw.destroyed) {
+        try { raw.end(); } catch { raw.destroy(); }
+      }
+    };
+    const authorized = () => {
+      if (closed) return false;
+      if (raw.writableEnded || raw.destroyed) { cleanup(); return false; }
+      return true;
+    };
+    const send = (event: unknown) => {
+      if (!authorized()) return;
+      const parsed = MatchmakingEventEnvelopeSchema.safeParse(event);
+      if (!parsed.success) return;
+      try { raw.write(`data: ${JSON.stringify(parsed.data)}\n\n`); }
+      catch { close(); }
+    };
+    function onRequestClose() {
+      // IncomingMessage close also occurs when the request body has completed.
+      // The response close event is authoritative for an actual SSE disconnect.
+      if (!request.raw.complete) cleanup();
+    }
+    request.raw.on("close", onRequestClose);
+    raw.on("close", cleanup);
+    unsubscribe = matchmaking.subscribe(queueId, send);
+    send(initial);
+    if (closed) return;
+    timer = setInterval(() => {
+      if (!authorized()) return;
+      try { matchmaking.tick(queueId, userId); }
+      catch { close(); }
+    }, 1000);
+    timer.unref();
   });
 }

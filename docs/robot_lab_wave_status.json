@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "plan": "docs/implementation_plan_ott_v0.2_robot_lab.md",
+  "threadId": "01a0dc09-a9e7-7943-a3ec-1b2dcbe866e2",
+  "automationId": "ott-v2-wave-coordinator",
+  "automationStatus": "DELETED",
+  "schedule": "FREQ=MINUTELY;INTERVAL=5",
+  "currentWave": "R3",
+  "status": "BLOCKED",
+  "completed": [
+    "R1",
+    "R2"
+  ],
+  "promptedNext": null,
+  "promptedCurrent": null,
+  "blockedReason": "Provider free-class hardware/scheduler/restart evidence requires separate deployment authorization; the local four-guest simulation is not a provider measurement.",
+  "evidence": {
+    "R1": {
+      "status": "DONE",
+      "source": "docs/implementation_plan_ott_v0.2_robot_lab.md#8.1",
+      "summary": "Queue/Spectator defects have focused, workspace and browser evidence plus independent review PASS."
+    },
+    "R2": {
+      "status": "DONE",
+      "source": "docs/implementation_plan_ott_v0.2_robot_lab.md#8.2",
+      "summary": "Guest principal and duplicate-mode repair have focused server/web/contract/browser evidence plus independent review PASS."
+    },
+    "R3": {
+      "status": "BLOCKED",
+      "source": "docs/implementation_plan_ott_v0.2_robot_lab.md#8.3",
+      "summary": "SDK/scorer/harness and frozen protocol pass; Wasmtime/CPython-WASI and Pyodide probes pass with supplied-sentinel, readonly unlink/rename, SDK-shaped whole-match, independent per-turn reset, single-admission, four-guest Fastify-under-load and distinct-origin Offline fixture evidence; independent fixture review passes, while provider free-class deployment/scheduler evidence remains outside local authorization.",
+      "focusedTests": "17/17 PASS",
+      "workspaceUnitContract": "15 files / 76 tests PASS",
+      "typecheck": "PASS",
+      "lint": "PASS",
+      "build": "PASS",
+      "independentReview": "PASS_FIXTURE_SCOPE_PROVIDER_GATE_OPEN",
+      "runtimeGate": "PARTIAL",
+      "onlineArtifactHashGate": "PASS_PRE_EXECUTION",
+      "onlineFilesystemBoundary": "PASS_BOUND_SENTINEL",
+      "onlineWholeMatch": "PASS_120_SDK_SHAPED_TURNS",
+      "onlineAdmission": "PASS_SINGLE_CAPACITY",
+      "offlineProbe": "PROVEN_FOR_PYODIDE_CROSS_ORIGIN_MODULE_WORKER_PROBE",
+      "applicationApiHeadroom": "PASS_FASTIFY_HEALTH_512M_HEAP_AND_FOUR_GUEST_LOAD",
+      "perTurnQuota": "PASS_TWO_TIMEOUTS_THEN_RESET_TURN",
+      "nfkcValidator": "PASS_FULLWIDTH_REFLECTION_TESTS",
+      "publicBundleLicenses": "PASS_FOUR_HASHED_TEXTS",
+      "remainingGates": [
+        "Provider free-class deployment/scheduler/restart evidence is not authorized or available; local simulation passes but cannot stand in for provider hardware",
+        "Production Bot Online/Offline integration remains R9/R10/R11 scope"
+      ]
+    }
+  },
+"updatedAt": "2026-10-03T09:28:50.5279787+07:00"
+}

@@ -176,6 +176,19 @@ export class MatchManager {
     this.activeLocks.clear();
   }
 
+  /** Remove a just-created, never-started match when room admission cannot commit atomically. */
+  discardUnstarted(roomId: string): void {
+    const match = this.matches.get(roomId);
+    if (!match || match.status !== "WAITING_READY" || match.sequence !== 0) return;
+    for (const timer of this.disconnectTimers.get(roomId)?.values() ?? []) clearTimeout(timer);
+    this.disconnectTimers.delete(roomId);
+    this.connections.delete(roomId);
+    this.listeners.delete(roomId);
+    this.spectatorListeners.delete(roomId);
+    this.releaseLocks(roomId);
+    this.matches.delete(roomId);
+  }
+
   snapshotEvent(room: RoomDetail): MatchEventEnvelope {
     const match = this.getMatch(room);
     return this.createEnvelope(match, "MATCH_SNAPSHOT");

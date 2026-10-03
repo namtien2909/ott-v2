@@ -17,8 +17,9 @@ export function queueStateFromSnapshot(queue: MatchmakingSnapshot, lastSequence 
 }
 
 export function applyQueueEvent(current: QueueUiState, event: MatchmakingEventEnvelope): QueueUiState {
+  if (event.queueId !== current.queue.queueId || event.payload.queueId !== current.queue.queueId) return current;
   if (event.sequence <= current.lastSequence) return current;
-  if (current.phase === "found" && event.type !== "MATCH_FOUND") return { ...current, lastSequence: event.sequence };
+  if (current.phase !== "queued" && event.payload.status !== current.queue.status) return { ...current, lastSequence: event.sequence };
 
   const phase: QueuePhase = event.type === "MATCH_FOUND" || event.payload.status === "MATCHED"
     ? "found"
@@ -27,6 +28,12 @@ export function applyQueueEvent(current: QueueUiState, event: MatchmakingEventEn
       : "queued";
 
   return { phase, queue: event.payload, lastSequence: event.sequence };
+}
+
+export function reconcileQueueSnapshot(current: QueueUiState, queue: MatchmakingSnapshot): QueueUiState {
+  if (queue.queueId !== current.queue.queueId) return current;
+  if (current.phase !== "queued" && queue.status !== current.queue.status) return current;
+  return queueStateFromSnapshot(queue, current.lastSequence);
 }
 
 export function formatQueueElapsed(milliseconds: number): string {

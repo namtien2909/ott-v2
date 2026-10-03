@@ -29,6 +29,7 @@ type IdempotencyRecord = { fingerprint: string; roomId: string };
 export class RoomManager {
   private readonly rooms = new Map<string, RoomState>();
   private readonly listeners = new Set<(rooms: RoomSummary[]) => void>();
+  private readonly spectatorRevocations = new Map<string, Set<() => void>>();
   private readonly createIdempotency = new Map<string, IdempotencyRecord>();
   private readonly joinIdempotency = new Map<string, IdempotencyRecord>();
 
@@ -94,6 +95,15 @@ export class RoomManager {
     return this.serialize(room, host.userId);
   }
 
+  /** Roll back a ranked room that has never started when match admission fails. */
+  discardRanked(roomId: string): void {
+    const normalizedRoomId = roomId.trim().toUpperCase();
+    const room = this.rooms.get(normalizedRoomId);
+    if (!room || room.mode !== "RANKED" || room.status !== "WAITING") return;
+    this.rooms.delete(normalizedRoomId);
+    this.publish();
+  }
+
   list(limit = 8): RoomSummary[] {
     return [...this.rooms.values()]
       .filter((room) => room.visibility === "PUBLIC" && room.status === "WAITING" && room.members.length < 2)
@@ -136,18 +146,43 @@ export class RoomManager {
   }
 
   leaveSpectator(roomId: string, userId: string): void {
-    const room = this.rooms.get(roomId.trim().toUpperCase());
-    if (room?.spectatorIds.delete(userId)) this.publish();
+    const normalizedRoomId = roomId.trim().toUpperCase();
+    const room = this.rooms.get(normalizedRoomId);
+    const removed = room?.spectatorIds.delete(userId) ?? false;
+    this.revokeSpectatorStreams(normalizedRoomId, userId);
+    if (removed) this.publish();
   }
 
   isSpectator(roomId: string, userId: string): boolean {
-    return this.rooms.get(roomId.trim().toUpperCase())?.spectatorIds.has(userId) ?? false;
+    const room = this.rooms.get(roomId.trim().toUpperCase());
+    return room !== undefined && room.spectatorsEnabled && room.spectatorIds.has(userId) && !room.members.some((member) => member.userId === userId);
+  }
+
+  /** Room-role revocation only; authentication session lifecycle is handled separately. */
+  subscribeSpectatorRevocation(roomId: string, userId: string, listener: () => void): () => void {
+    const normalizedRoomId = roomId.trim().toUpperCase();
+    if (!this.isSpectator(normalizedRoomId, userId)) { listener(); return () => {}; }
+    const key = `${normalizedRoomId}:${userId}`;
+    const listeners = this.spectatorRevocations.get(key) ?? new Set<() => void>();
+    listeners.add(listener);
+    this.spectatorRevocations.set(key, listeners);
+    return () => {
+      listeners.delete(listener);
+      if (listeners.size === 0 && this.spectatorRevocations.get(key) === listeners) this.spectatorRevocations.delete(key);
+    };
+  }
+
+  private revokeSpectatorStreams(roomId: string, userId: string): void {
+    const key = `${roomId}:${userId}`;
+    const listeners = this.spectatorRevocations.get(key);
+    this.spectatorRevocations.delete(key);
+    if (listeners) for (const listener of [...listeners]) listener();
   }
 
   spectatorView(roomId: string, userId: string): RoomDetail {
     const room = this.rooms.get(roomId.trim().toUpperCase());
     if (!room) throw new AppError("NOT_FOUND", "Phòng đấu không tồn tại.", 404, false, "INVALID");
-    if (!room.spectatorIds.has(userId)) throw new AppError("UNAUTHORIZED", "Bạn chưa được cấp quyền spectator cho phòng này.", 403, false, "INVALID", { reason: "SPECTATOR_ACCESS_REQUIRED" });
+    if (!this.isSpectator(room.roomId, userId)) throw new AppError("UNAUTHORIZED", "Bạn chưa được cấp quyền spectator cho phòng này.", 403, false, "INVALID", { reason: "SPECTATOR_ACCESS_REQUIRED" });
     return this.serialize(room, undefined, true);
   }
 
@@ -171,6 +206,7 @@ export class RoomManager {
       throw new AppError("UNAUTHORIZED", "Mật khẩu phòng không đúng.", 401, false, "INVALID");
     }
     room.members.push({ ...actor, joinedAt: Date.now(), isHost: false });
+    if (room.spectatorIds.delete(actor.userId)) this.revokeSpectatorStreams(normalizedRoomId, actor.userId);
     this.publish();
     if (idempotencyKey) this.joinIdempotency.set(`${actor.userId}:${idempotencyKey}`, { fingerprint, roomId: normalizedRoomId });
     return this.serialize(room, actor.userId);
@@ -186,6 +222,7 @@ export class RoomManager {
     room.members.splice(index, 1);
     if (room.members.length === 0) {
       this.rooms.delete(normalizedRoomId);
+      for (const userId of room.spectatorIds) this.revokeSpectatorStreams(normalizedRoomId, userId);
       this.publish();
       return null;
     }

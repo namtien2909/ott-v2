@@ -81,7 +81,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerMatchmakingRoutes(app, auth, matchmaking);
   await registerHistoryRoutes(app, auth, history);
   await registerSocialRoutes(app, auth, social);
-  await registerGuestImportRoutes(app, auth, guestImport);
+  await registerGuestImportRoutes(app, auth, guestImport, env.NODE_ENV === "production");
   await registerMetricsRoute(app, metrics);
   await registerHealthRoute(app, new HealthService(database, realtime));
   app.addHook("onReady", async () => realtime.start());

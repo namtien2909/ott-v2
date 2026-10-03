@@ -1,0 +1,145 @@
+{
+  "schemaVersion": 1,
+  "wave": "R3",
+  "recordedAt": "2026-10-03T02:13:51.948Z",
+  "host": {
+    "node": "v24.13.0",
+    "platform": "win32",
+    "arch": "x64",
+    "cpuCount": 8,
+    "totalMemoryBytes": 8299257856,
+    "freeMemoryBytesAtMeasurement": 1434116096,
+    "measurementCommand": "node scripts/r3-runtime-measure.mjs",
+    "freeMemoryIsVolatile": true
+  },
+  "sdk": {
+    "focusedTests": "17/17 PASS",
+    "nfkcNormalization": { "pass": true, "tests": ["fullwidth __getattribute__ rejected", "fullwidth __closure__ rejected"] },
+    "sourceGate": "STATIC_ONLY; no player code executed"
+  },
+  "online": {
+    "probeCommand": "node scripts/r3-wasmtime-probe.mjs --wasmtime <pinned-wasmtime.exe> --cpython-dir <read-only-cpython-wasi-dir> --outside-sentinel <outside-sentinel> --readonly-probe-file <runtime-readonly-probe> --require-pass",
+    "runtimeGate": "PROVEN_FOR_WASMTIME_CPYTHON_WASI_PROBE",
+    "measuredAt": "2026-10-03T02:10:42.565Z",
+    "fixtureCodeExecuted": true,
+    "playerCodeExecuted": false,
+    "limits": {
+      "wasmFuel": 300000000,
+      "perTurnMs": 500,
+      "outputBytes": 16384,
+      "wasmMemoryPages": 1024
+    },
+    "checks": {
+      "abi": { "pass": true, "elapsedMs": 1301 },
+      "environmentIsolation": { "pass": true, "keys": ["PYTHONHASHSEED", "TZ"] },
+      "filesystemBoundary": { "pass": true, "outsideSentinelExists": true, "outsideSentinelOutsideRuntime": true, "guestSentinelPath": "/../ott-v2-host-secret.txt", "guestRead": "PermissionError", "guestWrite": "PermissionError", "readonlyProbeExists": true, "readonlyProbeGuestPath": "/r3-readonly-probe.txt", "unlink": "PermissionError", "rename": "PermissionError" },
+      "networkIsolation": { "pass": true },
+      "pathTraversal": { "pass": true, "results": ["PermissionError", "PermissionError", "FileNotFoundError"] },
+      "infiniteLoopBudget": { "pass": true },
+      "perTurnQuota": { "pass": true, "consecutiveTimeouts": [{ "code": 3, "elapsedMs": 188, "hostTimedOut": false }, { "code": 3, "elapsedMs": 171, "hostTimedOut": false }], "resetTurn": { "code": 0, "elapsedMs": 203 }, "enforcement": "fresh Wasmtime invocation per turn; timeout/fuel failure reclaimed before next turn" },
+      "sleepBudget": { "pass": true, "elapsedMs": 607 },
+      "memoryBoundary": { "pass": true },
+      "outputBudget": { "pass": true, "outputBytes": 20001, "limit": 16384, "terminated": true },
+      "cancellation": { "pass": true, "elapsedMs": 68 },
+      "killReclaim": { "pass": true, "elapsedMs": 202 },
+      "determinism": { "pass": true, "sameSeedSameState": true, "differentSeedChangesResult": true },
+      "headroom": { "pass": true, "runs": 12, "minMs": 193, "p95Ms": 208, "maxMs": 208 },
+      "wholeMatchBudget": { "pass": true, "blueRounds": 60, "redRounds": 60, "elapsedMs": 432, "limitMs": 30000, "blueRuntimeMs": 236, "redRuntimeMs": 195, "blueFixtureTurnP95Ms": 0.003, "redFixtureTurnP95Ms": 0.004, "blueFixtureTurnMaxMs": 0.008, "redFixtureTurnMaxMs": 0.008, "entrypointCallsPerSide": 60, "memoryUpdatesPerSide": 60 },
+      "admission": { "pass": true, "capacity": 1, "firstGranted": true, "secondRejected": true, "activeAfterRelease": 0 },
+      "apiHeadroom": { "pass": true, "requests": 12, "p95Ms": 281, "maxMs": 281, "concurrentStatuses": [200, 429], "admissionPass": true, "origin": "loopback-ephemeral" },
+      "applicationApiHeadroom": { "pass": true, "route": "GET /health", "requests": 12, "p95Ms": 33, "maxMs": 33, "concurrentStatuses": [200, 200], "nodeHeapCap": "512 MiB", "databaseMutated": false, "origin": "Fastify app.inject disposable" },
+      "applicationApiUnderWasmtimeLoad": { "pass": true, "harness": "apps/server/test/r3-api-under-wasmtime-load.ts", "measuredAt": "2026-10-03T02:13:51.948Z", "guestCount": 4, "guestMaxMs": 495, "requests": 24, "p95Ms": 1, "maxMs": 41, "concurrentStatuses": [200, 200, 200, 200], "concurrentElapsedMs": 1, "freeClassSimulation": true, "productionDeployment": false, "databaseMutated": false }
+    },
+    "observations": {
+      "filesystemPreopen": "NTFS ACL read/list allowed; supplied outside sentinel and designated readonly probe reject guest read/write/unlink/rename",
+      "wholeMatchFairness": "120 in-process SDK-shaped fixture turns (60 per side) call choose_move, validate legalMoves and update memory; per-turn process startup headroom is measured separately; independent per-turn timeout/fuel reset is verified by two consecutive terminated turns followed by a successful turn",
+      "resourceAdmission": "single admitted runtime; second acquisition and concurrent HTTP request rejected",
+      "apiHeadroom": "12 loopback supervisor requests p95 281 ms; concurrent statuses 200/429",
+      "applicationApiHeadroom": "Fastify GET /health p95 33 ms under a 512 MiB Node heap cap; two concurrent requests 200/200; disposable fake DB, no mutation",
+      "applicationApiUnderWasmtimeLoad": "Four pinned Wasmtime fixtures ran outside Fastify; 24 sequential health requests p95 1 ms/max 41 ms and four concurrent requests all 200; local free-class simulation only"
+    }
+  },
+  "offline": {
+    "probeCommand": "node scripts/r3-pyodide-probe.mjs --pyodide-dir apps/web/public/pyodide --browser <system-chrome> --require-pass",
+    "runtimeGate": "PROVEN_FOR_PYODIDE_MODULE_WORKER_PROBE",
+    "measuredAt": "2026-10-03T02:09:35.865Z",
+    "fixtureCodeExecuted": true,
+    "playerCodeExecuted": false,
+    "checks": {
+      "warmWorkerAbi": { "pass": true, "elapsedMs": 1136, "bootElapsedMs": 1117, "computeElapsedMs": 19 },
+      "offlineColdWorker": { "pass": true, "runtimeRequestDelta": 0, "requestCountDelta": 1, "elapsedMs": 1334, "bootElapsedMs": 1315, "computeElapsedMs": 19 },
+      "deterministicSeed": true,
+      "outputBudget": { "pass": true, "outputBytes": 20002, "limit": 16384, "terminated": true },
+      "watchdogTerminate": { "pass": true, "elapsedMs": 501, "timeoutPhase": "compute", "bootElapsedMs": 1081, "computeElapsedMs": 501 },
+      "capabilityDeny": {
+        "pass": true,
+        "networkDenied": true,
+        "indexedDB": "undefined",
+        "caches": "undefined",
+        "cookieStore": "undefined",
+        "document": "undefined",
+        "window": "undefined",
+        "fetchLocked": true,
+        "memoryLocked": true,
+        "memoryPages": 1024,
+        "jsBridge": {
+          "fetch": false,
+          "indexedDB": false,
+          "caches": false,
+          "cookieStore": false,
+          "document": false,
+          "window": false,
+          "Worker": false,
+          "Blob": false
+        },
+        "pythonImportsDenied": ["js", "pyodide_js", "pyodide", "builtins"],
+        "guardAliasExposed": false,
+        "workerResponseCsp": "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; worker-src 'none'; child-src 'none'; object-src 'none'; base-uri 'none'"
+      },
+      "crossOriginCompartment": {
+        "pass": true,
+        "parentOrigin": "http://127.0.0.1:<port>",
+        "compartmentOrigin": "http://localhost:<port>",
+        "eventOriginMatchesCompartment": true,
+        "parentReadable": false,
+        "cookie": "",
+        "networkDenied": true,
+        "rendererGlobalsUndefined": true,
+        "bridgeGlobalsAllFalse": true,
+        "pythonImportsDenied": ["js", "pyodide_js", "pyodide", "builtins"]
+      },
+      "crossOriginFixtures": {
+        "pass": true,
+        "abi": { "pass": true, "result": "{\"move\":{\"from\":\"a1\",\"to\":\"b2\"},\"memory\":{\"seen\":1}}" },
+        "deterministic": { "pass": true, "sameResult": true },
+        "outputBudget": { "pass": true, "outputBytes": 20002, "limit": 16384 },
+        "watchdog": { "pass": true, "timeoutPhase": "compute" }
+      }
+    },
+    "observations": {
+      "runtimeAssetsFetchedDuringOfflineReload": 0,
+      "nonRuntimeRequestsDuringOfflineReload": 1,
+      "nonRuntimeRequestsAreShellOrServiceWorkerOnly": true,
+      "publicBundleLicenses": [
+        { "file": "apps/web/public/pyodide/licenses/Apache-2.0.txt", "bytes": 12244, "sha256": "061870898db72252c75e80b20755c724f05c3db73a89af41489c6729a4a5c145" },
+        { "file": "apps/web/public/pyodide/licenses/MIT.txt", "bytes": 1071, "sha256": "88235abf1b643793ad0caca71db13b549b222a5292179c144764595c01db3de1" },
+        { "file": "apps/web/public/pyodide/licenses/MPL-2.0.txt", "bytes": 16727, "sha256": "a0b47b27d905162a390b1f069c56fd6a9be35fd99f629c7102bb05436b07f600" },
+        { "file": "apps/web/public/pyodide/licenses/PSF-2.0.txt", "bytes": 13806, "sha256": "f0c9f3617bc73be967bd41749f196947f8f3f6f6bcb5aa96fa9d044f966061f5" }
+      ]
+    }
+  },
+  "boundary": {
+    "status": "PARTIAL_RUNTIME_EVIDENCE_NOT_PRODUCTION_INTEGRATED",
+    "independentReview": { "status": "PASS_FIXTURE_SCOPE", "providerGate": "OPEN", "productionReadiness": false },
+    "scope": "Fixed compatibility/security fixtures only; no player Python, Bot Online/Offline gameplay, scheduler, server commit, restart recovery, public audit or persistence path was enabled.",
+    "freeOnly": true,
+    "paidServiceUsed": false,
+    "databaseMutated": false,
+    "deploymentPerformed": false,
+    "remainingGates": [
+      "Provider free-class deployment/scheduler/restart evidence is not authorized or available; local simulation cannot stand in for provider hardware.",
+      "Production Bot Online/Offline integration remains later R9/R10/R11 scope.",
+      "Optional Pyodide lock-catalog packages are not shipped; pinned runtime license texts are checked in and hash-recorded in the public bundle."
+    ]
+  }
+}

@@ -38,7 +38,7 @@ describe("B3 Home lobby", () => {
     expect(screen.getAllByText("ĐĂNG NHẬP ĐỂ XẾP HẠNG")).toHaveLength(2);
     expect(screen.getByText("Đấu với máy")).toBeInTheDocument();
     expect(screen.getByText("Offline 2P")).toBeInTheDocument();
-    expect(screen.getByText("Guest Arena")).toBeInTheDocument();
+    expect(screen.queryByText("Guest Arena")).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Room Browser mock" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Friends Preview guest" })).toBeInTheDocument();
   });

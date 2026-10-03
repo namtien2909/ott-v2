@@ -9,6 +9,7 @@ import { ApiError } from "../services/http/apiError";
 import { fastReady, getMatch, rejectRematch, requestRematch, setReady, submitMove, surrender, subscribeToMatch } from "../services/rooms/matchApi";
 import { leaveRoom } from "../services/rooms/roomApi";
 import { getTabId } from "../services/session/clientIdentity";
+import { ensureGuestSession } from "../services/guest/guestApi";
 import { applyPresentationPreferences, notifyAudioPreferenceChanged, playSound } from "../services/presentation/preferences";
 import { createSemanticEvent, semanticEventBus, type SemanticEventType } from "../foundation/eventBus";
 import { formatCountdown } from "./queueState";
@@ -97,7 +98,10 @@ export default function GameRoomPage() {
     let lastSequence = -1;
     let lastStateVersion = -1;
     setOnline({ kind: "loading" });
-    getMatch(roomId).then((result) => {
+    // Account cookies remain usable even when a browser cannot provide the
+    // Guest cross-tab lock; Guest requests then fail authoritatively server-side
+    // instead of creating an unsafe duplicate principal.
+    ensureGuestSession().catch(() => undefined).then(() => getMatch(roomId)).then((result) => {
       if (!active) return;
       const viewerSide = result.viewerSide;
       if (viewerSide) setViewSide(viewerSide);

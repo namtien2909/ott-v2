@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "corepack pnpm run build:packages && corepack pnpm --parallel --filter @ottv2/web --filter @ottv2/server dev",
-    "build:packages": "corepack pnpm --filter @ottv2/contracts build && corepack pnpm --filter @ottv2/game-rules build",
+    "build:packages": "corepack pnpm --filter @ottv2/contracts build && corepack pnpm --filter @ottv2/game-rules build && corepack pnpm --filter @ottv2/bot-sdk build",
     "build": "corepack pnpm -r --if-present build",
     "typecheck": "corepack pnpm run build:packages && corepack pnpm -r --if-present typecheck",
     "lint": "corepack pnpm -r --if-present lint",

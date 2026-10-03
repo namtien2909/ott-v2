@@ -1,5 +1,5 @@
 import { lazy } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "../layouts/AppLayout";
 import { routes } from "./routes";
 
@@ -44,7 +44,7 @@ export function AppRouter() {
         <Route path={routes.settings} element={<SettingsPage />} />
         <Route path={routes.canonicalSettings} element={<SettingsPage />} />
         <Route path={routes.guest} element={<GuestSetupPage />} />
-        <Route path={routes.guestPlay} element={<LocalGamePage mode="GUEST" />} />
+        <Route path={routes.guestPlay} element={<Navigate to={routes.offline} replace />} />
         <Route path={routes.ai} element={<LocalGamePage mode="AI" />} />
         <Route path={routes.offline} element={<LocalGamePage mode="OFFLINE" />} />
         <Route path={routes.spectator} element={<SpectatorPage />} />

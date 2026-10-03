@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { MatchmakingEventEnvelope, MatchmakingEventType, MatchmakingPlayer, MatchmakingSnapshot } from "@ottv2/contracts";
+import type { MatchmakingEventEnvelope, MatchmakingEventType, MatchmakingPlayer, MatchmakingSnapshot, RoomDetail } from "@ottv2/contracts";
 
 import { AppError } from "../../shared/errors/app-error.js";
 import { MatchManager, type MatchActor } from "../match/match.manager.js";
@@ -27,6 +27,8 @@ const MAX_RANGE = 1_000;
 export class MatchmakingManager {
   private readonly entries = new Map<string, QueueEntry>();
   private readonly byUser = new Map<string, string>();
+  /** Users reserved while a ranked room is being committed across an async boundary. */
+  private readonly pendingUsers = new Set<string>();
   private readonly listeners = new Map<string, Set<QueueListener>>();
   private readonly now: () => number;
 
@@ -44,37 +46,54 @@ export class MatchmakingManager {
       throw new AppError("CONFLICT", "Bạn đã ở trong hàng chờ tìm trận.", 409, false, "INVALID", { reason: "MATCHMAKING_ALREADY_QUEUED", queueId: existingId });
     }
     const entry: QueueEntry = { queueId: randomUUID(), actor, clientId, elo: Math.max(0, Math.round(elo)), joinedAt: this.now(), status: "QUEUED", opponent: null, roomId: null, matchId: null, sequence: 0 };
-    const candidate = [...this.entries.values()].find((item) => item.status === "QUEUED" && item.actor.userId !== actor.userId && Math.abs(item.elo - entry.elo) <= Math.max(this.range(item), this.range(entry)));
+    const candidate = [...this.entries.values()].find((item) => item.status === "QUEUED" && !this.pendingUsers.has(item.actor.userId) && item.actor.userId !== actor.userId && Math.abs(item.elo - entry.elo) <= Math.max(this.range(item), this.range(entry)));
     if (!candidate) {
       this.entries.set(entry.queueId, entry);
       this.byUser.set(actor.userId, entry.queueId);
       this.emit(entry, "QUEUE_JOINED");
       return this.snapshot(entry);
     }
-    this.entries.delete(candidate.queueId);
-    this.byUser.delete(candidate.actor.userId);
     if (this.matches.isActiveLocked(candidate.actor.userId)) throw new AppError("CONFLICT", "Đối thủ vừa tham gia một trận đấu khác.", 409, true, "RECOVERABLE", { reason: "ACTIVE_GAME_EXISTS" });
-    const rankedRoom = await this.rooms.createRanked(this.roomActor(candidate), this.roomActor(entry));
-    const match = this.matches.ensure(rankedRoom);
-    this.matches.acquireActiveLock(rankedRoom, candidate.actor.userId, candidate.clientId);
-    this.matches.acquireActiveLock(rankedRoom, actor.userId, clientId);
-    candidate.status = "MATCHED";
-    candidate.opponent = this.playerOf(entry);
-    candidate.roomId = rankedRoom.roomId;
-    candidate.matchId = match.matchId;
-    candidate.sequence = 0;
-    entry.status = "MATCHED";
-    entry.opponent = this.playerOf(candidate);
-    entry.roomId = rankedRoom.roomId;
-    entry.matchId = match.matchId;
-    entry.sequence = 0;
-    this.entries.set(candidate.queueId, candidate);
+    this.pendingUsers.add(candidate.actor.userId);
+    this.pendingUsers.add(actor.userId);
+    // Keep both queue entries and user ownership visible until the room commit resolves.
+    // A concurrent join/cancel therefore cannot create a second generation or erase the
+    // candidate while createRanked is awaiting an async storage boundary.
     this.entries.set(entry.queueId, entry);
-    this.byUser.set(candidate.actor.userId, candidate.queueId);
     this.byUser.set(actor.userId, entry.queueId);
-    this.emit(candidate, "MATCH_FOUND");
-    this.emit(entry, "MATCH_FOUND");
-    return this.snapshot(entry);
+    let rankedRoom: RoomDetail | undefined;
+    try {
+      rankedRoom = await this.rooms.createRanked(this.roomActor(candidate), this.roomActor(entry));
+      const match = this.matches.ensure(rankedRoom);
+      this.matches.acquireActiveLock(rankedRoom, candidate.actor.userId, candidate.clientId);
+      this.matches.acquireActiveLock(rankedRoom, actor.userId, clientId);
+      candidate.status = "MATCHED";
+      candidate.opponent = this.playerOf(entry);
+      candidate.roomId = rankedRoom.roomId;
+      candidate.matchId = match.matchId;
+      entry.status = "MATCHED";
+      entry.opponent = this.playerOf(candidate);
+      entry.roomId = rankedRoom.roomId;
+      entry.matchId = match.matchId;
+      this.emit(candidate, "MATCH_FOUND");
+      this.emit(entry, "MATCH_FOUND");
+      return this.snapshot(entry);
+    } catch (error) {
+      // Keep the provisional queue as a terminal tombstone. A same-client retry may
+      // already have received this queueId while room creation was awaiting storage;
+      // deleting it would turn a legitimate cancel/reconcile into a misleading 404.
+      entry.status = "CANCELLED";
+      this.byUser.delete(actor.userId);
+      this.emit(entry, "QUEUE_CANCELLED");
+      if (rankedRoom) {
+        this.matches.discardUnstarted(rankedRoom.roomId);
+        this.rooms.discardRanked(rankedRoom.roomId);
+      }
+      throw error;
+    } finally {
+      this.pendingUsers.delete(candidate.actor.userId);
+      this.pendingUsers.delete(actor.userId);
+    }
   }
 
   get(queueId: string, userId: string): MatchmakingSnapshot {
@@ -86,6 +105,7 @@ export class MatchmakingManager {
   cancel(queueId: string, userId: string): MatchmakingSnapshot {
     const entry = this.entries.get(queueId);
     if (!entry || entry.actor.userId !== userId) throw new AppError("NOT_FOUND", "Không tìm thấy hàng chờ.", 404, false, "INVALID");
+    if (this.pendingUsers.has(userId)) throw new AppError("CONFLICT", "Đang xác nhận ghép trận; hãy chờ kết quả từ máy chủ.", 409, true, "RECOVERABLE", { reason: "MATCH_COMMIT_IN_PROGRESS" });
     if (entry.status === "MATCHED") throw new AppError("CONFLICT", "Đối thủ đã được ghép trận; không thể huỷ tìm trận.", 409, false, "INVALID", { reason: "MATCH_ALREADY_COMMITTED", roomId: entry.roomId, matchId: entry.matchId });
     if (entry.status === "CANCELLED") return this.snapshot(entry);
     entry.status = "CANCELLED";
@@ -117,6 +137,7 @@ export class MatchmakingManager {
   stop(): void {
     this.entries.clear();
     this.byUser.clear();
+    this.pendingUsers.clear();
     this.listeners.clear();
   }
 

@@ -1,4 +1,4 @@
-import type { MatchmakingEventEnvelope, MatchmakingSnapshot } from "@ottv2/contracts";
+import { MatchmakingEventEnvelopeSchema, type MatchmakingEventEnvelope, type MatchmakingSnapshot } from "@ottv2/contracts";
 
 import { env } from "../../config/env";
 import { getJson, requestJson } from "../http/httpClient";
@@ -16,9 +16,15 @@ export function cancelQueue(queueId: string) {
   return requestJson<{ queue: MatchmakingSnapshot }>(`/matchmaking/queue/${encodeURIComponent(queueId)}`, { method: "DELETE", headers: { "X-Client-Id": getClientId() } });
 }
 
-export function subscribeToQueue(queueId: string, onEvent: (event: MatchmakingEventEnvelope) => void, onError: () => void): () => void {
+export function subscribeToQueue(queueId: string, onEvent: (event: MatchmakingEventEnvelope) => void, onError: () => void, onOpen?: () => void): () => void {
   const source = new EventSource(`${env.apiBaseUrl}/matchmaking/queue/${encodeURIComponent(queueId)}/events?clientId=${encodeURIComponent(getClientId())}`, { withCredentials: true });
-  source.onmessage = (message) => { try { onEvent(JSON.parse(message.data) as MatchmakingEventEnvelope); } catch { onError(); } };
+  source.onmessage = (message) => {
+    try {
+      const event = MatchmakingEventEnvelopeSchema.parse(JSON.parse(message.data));
+      if (event.queueId === queueId && event.payload.queueId === queueId) onEvent(event);
+    } catch { onError(); }
+  };
   source.onerror = onError;
+  source.onopen = () => onOpen?.();
   return () => source.close();
 }

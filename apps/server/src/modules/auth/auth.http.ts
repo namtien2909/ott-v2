@@ -1,7 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 
 import { AppError } from "../../shared/errors/app-error.js";
-import { SESSION_COOKIE } from "./auth.service.js";
+import { GUEST_SESSION_COOKIE, SESSION_COOKIE } from "./auth.service.js";
 
 export function readCookie(request: FastifyRequest, name = SESSION_COOKIE): string | undefined {
   const header = request.headers.cookie;
@@ -16,6 +16,10 @@ export function readCookie(request: FastifyRequest, name = SESSION_COOKIE): stri
 export function setSessionCookie(reply: FastifyReply, token: string, remember: boolean, secure: boolean): void {
   const maxAge = remember ? 30 * 24 * 60 * 60 : 24 * 60 * 60;
   reply.header("Set-Cookie", `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure ? "; Secure" : ""}`);
+}
+
+export function setGuestSessionCookie(reply: FastifyReply, token: string, secure: boolean): void {
+  reply.header("Set-Cookie", `${GUEST_SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 60 * 60}${secure ? "; Secure" : ""}`);
 }
 
 export function clearSessionCookie(reply: FastifyReply, secure: boolean): void {

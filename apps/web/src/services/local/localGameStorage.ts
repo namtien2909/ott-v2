@@ -1,4 +1,5 @@
 import type { RuleState, Side } from "@ottv2/game-rules";
+import { getClientId, guestDisplayName } from "../session/clientIdentity";
 
 export type LocalMode = "GUEST" | "AI" | "OFFLINE";
 export type LocalResult = "WIN" | "LOSS" | "DRAW";
@@ -34,6 +35,7 @@ const HISTORY_STORE = "history";
 const META_STORE = "meta";
 const PROFILE_KEY = "guest-profile";
 const IMPORT_KEY = "guest-import-decision";
+const GUEST_SESSION_MIGRATION_KEY = "guest-session-migration-v1";
 const FALLBACK_HISTORY = "ottv2.local.history";
 const FALLBACK_PROFILE = "ottv2.local.profile";
 const FALLBACK_IMPORT = "ottv2.local.import";
@@ -77,8 +79,13 @@ async function withStore<T>(storeName: string, mode: IDBTransactionMode, action:
 }
 
 export async function getGuestProfile(): Promise<GuestProfile | null> {
-  try { return (await withStore<GuestProfile | undefined>(META_STORE, "readonly", (store) => store.get(PROFILE_KEY))) ?? null; }
-  catch { return fallbackGet<GuestProfile | null>(FALLBACK_PROFILE, null); }
+  let profile: GuestProfile | null = null;
+  try { profile = (await withStore<GuestProfile | undefined>(META_STORE, "readonly", (store) => store.get(PROFILE_KEY))) ?? null; }
+  catch { profile = fallbackGet<GuestProfile | null>(FALLBACK_PROFILE, null); }
+  if (profile?.displayName?.trim()) return profile;
+  const generated = { displayName: guestDisplayName(getClientId()) };
+  await setGuestProfile(generated);
+  return generated;
 }
 
 export async function setGuestProfile(profile: GuestProfile): Promise<void> {
@@ -128,6 +135,32 @@ export async function clearLocalSession(mode: LocalMode): Promise<void> {
   } catch {
     try { globalThis.localStorage?.removeItem(key); } catch { /* storage can be unavailable in private mode */ }
   }
+}
+
+export async function migrateLegacyGuestSessionToOffline(): Promise<LocalSessionSnapshot | null> {
+  const migratedAlready = await readMetaValue<string>(GUEST_SESSION_MIGRATION_KEY);
+  if (migratedAlready === "DONE") return null;
+  const current = await getLocalSession("OFFLINE");
+  if (current) {
+    if (await getLocalSession("GUEST")) await writeMetaValue(GUEST_SESSION_MIGRATION_KEY, "DONE");
+    return current;
+  }
+  const legacy = await getLocalSession("GUEST");
+  if (!legacy) return null;
+  const migrated = { ...legacy, mode: "OFFLINE" as const };
+  await setLocalSession(migrated);
+  await writeMetaValue(GUEST_SESSION_MIGRATION_KEY, "DONE");
+  return migrated;
+}
+
+async function readMetaValue<T>(key: string): Promise<T | null> {
+  try { return (await withStore<T | undefined>(META_STORE, "readonly", (store) => store.get(key))) ?? null; }
+  catch { return fallbackGet<T | null>(`ottv2.local.meta.${key}`, null); }
+}
+
+async function writeMetaValue<T>(key: string, value: T): Promise<void> {
+  try { await withStore(META_STORE, "readwrite", (store) => store.put(value, key)); }
+  catch { fallbackSet(`ottv2.local.meta.${key}`, value); }
 }
 
 export async function clearGuestHistory(): Promise<void> {

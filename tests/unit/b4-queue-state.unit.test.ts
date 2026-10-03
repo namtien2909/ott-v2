@@ -28,6 +28,18 @@ function event(sequence: number, type: MatchmakingEventEnvelope["type"], payload
 }
 
 describe("B4 queue state", () => {
+  it("ignores events from another queue generation or mismatched payload generation", () => {
+    const current = queueStateFromSnapshot(queue, 3);
+    const anotherQueue = { ...queue, queueId: "00000000-0000-4000-8000-000000000099" };
+    expect(applyQueueEvent(current, event(10, "QUEUE_CANCELLED", anotherQueue))).toBe(current);
+    expect(applyQueueEvent(current, { ...event(10, "QUEUE_RANGE_UPDATED", queue), queueId: anotherQueue.queueId })).toBe(current);
+  });
+
+  it("does not reopen an acknowledged cancelled generation with a later search event", () => {
+    const cancelled = queueStateFromSnapshot({ ...queue, status: "CANCELLED" }, 3);
+    expect(applyQueueEvent(cancelled, event(4, "QUEUE_RANGE_UPDATED", queue))).toEqual({ ...cancelled, lastSequence: 4 });
+  });
+
   it("formats tabular elapsed time and server countdown", () => {
     expect(formatQueueElapsed(78_000)).toBe("01:18");
     expect(formatCountdown(4_000, 1_001)).toBe(3);
