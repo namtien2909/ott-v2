@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { chmod, mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { cpus, freemem, tmpdir, totalmem } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -67,9 +67,24 @@ async function download(url, destination) {
   // GitHub release assets intentionally redirect to a content-addressed
   // release host. The URL is pinned in the checked-in manifest and the
   // downloaded bytes are hash-verified before anything is executed.
+  const partial = `${destination}.partial`;
+  await unlink(partial, { force: true });
+  if (process.platform !== "win32") {
+    try {
+      const curl = await runCommand("curl", ["--fail", "--location", "--retry", "3", "--retry-all-errors", "--silent", "--show-error", "--output", partial, url]);
+      if (curl.code === 0) {
+        await rename(partial, destination);
+        return;
+      }
+    } catch {
+      // Fall back to Node fetch when curl is unavailable in a build image.
+    }
+    await unlink(partial, { force: true });
+  }
   const response = await fetch(url, { redirect: "follow" });
   if (!response.ok || !response.body) throw new Error(`Pinned runtime download failed (${response.status}).`);
-  await pipeline(Readable.fromWeb(response.body), createWriteStream(destination, { flags: "wx" }));
+  await pipeline(Readable.fromWeb(response.body), createWriteStream(partial, { flags: "wx" }));
+  await rename(partial, destination);
 }
 
 async function extractArchive(archivePath, destination, stripComponents = false) {
@@ -289,9 +304,11 @@ async function main() {
   probeStage = "download-cpython";
   await download(`https://github.com/brettcannon/cpython-wasi-build/releases/download/v${cpython.version}/${cpython.archive}`, cpythonArchive);
   probeStage = "verify-wasmtime-archive";
-  if ((await sha256(wasmtimeArchive)).toLowerCase() !== wasmtime.linuxArchiveSha256.toLowerCase()) throw new Error("Wasmtime archive hash mismatch.");
+  const wasmtimeArchiveSha256 = await sha256(wasmtimeArchive);
+  if (wasmtimeArchiveSha256.toLowerCase() !== wasmtime.linuxArchiveSha256.toLowerCase()) throw new Error(`Wasmtime archive hash mismatch (${wasmtimeArchiveSha256}).`);
   probeStage = "verify-cpython-archive";
-  if ((await sha256(cpythonArchive)).toLowerCase() !== cpython.archiveSha256.toLowerCase()) throw new Error("CPython-WASI archive hash mismatch.");
+  const cpythonArchiveSha256 = await sha256(cpythonArchive);
+  if (cpythonArchiveSha256.toLowerCase() !== cpython.archiveSha256.toLowerCase()) throw new Error(`CPython-WASI archive hash mismatch (${cpythonArchiveSha256}).`);
   probeStage = "extract-wasmtime";
   await extractArchive(wasmtimeArchive, wasmtimeRoot, true);
   probeStage = "extract-cpython";
@@ -345,7 +362,8 @@ try {
       fixtureCodeExecuted: false,
       reason: "Provider probe failed closed; no player code was executed."
     }, null, 2)}\n`, "utf8");
-    console.error(`R3 provider probe failed closed at ${probeStage}.`);
+    const safeReason = error instanceof Error ? error.message.replace(/[^a-zA-Z0-9:_(). -]/g, "").slice(0, 220) : "UnknownError";
+    console.error(`R3 provider probe failed closed at ${probeStage}: ${safeReason}`);
     process.exitCode = 1;
   }
 }
