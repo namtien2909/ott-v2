@@ -12,6 +12,16 @@ describe("loadEnv", () => {
     expect(env.corsOrigins).toEqual(["http://localhost:5173", "http://127.0.0.1:5173"]);
   });
 
+  it("adds Render's canonical service URL without allowing a wildcard", () => {
+    const env = loadEnv({
+      DATABASE_URL: "postgresql://user:password@localhost:5432/ottv2_test",
+      CORS_ORIGINS: "https://legacy.example",
+      RENDER_EXTERNAL_URL: "https://ott-v2.onrender.com/"
+    });
+    expect(env.corsOrigins).toEqual(["https://legacy.example", "https://ott-v2.onrender.com"]);
+    expect(env.corsOrigins).not.toContain("*");
+  });
+
   it("reports invalid variable names without echoing values", () => {
     const secret = "a-value-that-must-not-be-logged";
     try {

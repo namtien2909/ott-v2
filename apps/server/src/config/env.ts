@@ -9,12 +9,24 @@ export const envSchema = z.object({
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   DATABASE_URL: z.string().min(1),
   CORS_ORIGINS: z.string().min(1).default("http://localhost:3000"),
+  RENDER_EXTERNAL_URL: z.preprocess(emptyStringToUndefined, z.string().url().optional()),
   REALTIME_ADAPTER: z.enum(["disabled", "playhtml"]).default("disabled"),
   PLAYHTML_ENDPOINT: z.preprocess(emptyStringToUndefined, z.string().url().optional()),
   PLAYHTML_PROJECT_ID: z.preprocess(emptyStringToUndefined, z.string().min(1).optional())
 });
 
 export type AppEnv = z.infer<typeof envSchema> & { corsOrigins: string[] };
+
+function canonicalOrigin(origin: string): string {
+  try {
+    const parsed = new URL(origin);
+    return parsed.pathname === "/" && parsed.search === "" && parsed.hash === ""
+      ? parsed.origin
+      : origin;
+  } catch {
+    return origin;
+  }
+}
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   const parsed = envSchema.safeParse(source);
@@ -23,7 +35,12 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     throw new Error(`Invalid environment configuration: ${names}`);
   }
 
-  const corsOrigins = parsed.data.CORS_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean);
+  const configuredOrigins = parsed.data.CORS_ORIGINS.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+    .map(canonicalOrigin);
+  const renderOrigin = parsed.data.RENDER_EXTERNAL_URL ? canonicalOrigin(parsed.data.RENDER_EXTERNAL_URL) : undefined;
+  const corsOrigins = [...new Set(renderOrigin ? [...configuredOrigins, renderOrigin] : configuredOrigins)];
   if (parsed.data.NODE_ENV === "production") {
     if (corsOrigins.includes("*") || corsOrigins.some((origin) => {
       try {
