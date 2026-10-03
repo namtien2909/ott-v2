@@ -33,7 +33,7 @@ The offline probe loads only self-hosted, pinned assets. After runtime bootstrap
 The exact equal-budget preset is recorded in [`r3-bot-limit-manifest.json`](./r3-bot-limit-manifest.json) and exported as `DEFAULT_BOT_LIMITS`. The current measured preset is:
 
 - source/upload: 64 KiB; output: 16 KiB including memory; memory: 8 KiB, depth 32;
-- per-turn: 500 ms and 300,000,000 Wasm fuel; Wasm memory: 1,024 pages (64 MiB, including the CPython-WASI runtime);
+- per-turn: 500 ms and 300,000,000 Wasm fuel; CPython-WASI bootstrap allowance: 2,000,000,000 fuel (bootstrap only, never player-turn budget); Wasm memory: 1,024 pages (64 MiB, including the CPython-WASI runtime);
 - whole match: 30,000 ms active compute, 120 plies / 60 rounds;
 - no network, secrets or application mounts; deterministic seed; one initial admitted Bot match.
 

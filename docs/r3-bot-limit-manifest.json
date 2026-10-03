@@ -19,6 +19,7 @@
     "maxPlies": 120,
     "maxRounds": 60,
     "wholeMatchClockMode": "ACTIVE_COMPUTE",
+    "wasmStartupFuel": 2000000000,
     "wasmFuel": 300000000,
     "wasmEpochTicks": 500,
     "wasmMemoryPages": 1024,

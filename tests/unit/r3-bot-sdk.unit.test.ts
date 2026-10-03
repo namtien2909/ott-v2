@@ -64,6 +64,7 @@ describe("R3 Bot SDK/scorer harness", () => {
     expect(DEFAULT_BOT_LIMITS.sourceBytes).toBeGreaterThan(0);
     expect(DEFAULT_BOT_LIMITS.perTurnMs).toBeGreaterThan(0);
     expect(DEFAULT_BOT_LIMITS.wholeMatchMs).toBeGreaterThan(DEFAULT_BOT_LIMITS.perTurnMs);
+    expect(DEFAULT_BOT_LIMITS.wasmStartupFuel).toBeGreaterThan(DEFAULT_BOT_LIMITS.wasmFuel);
     expect(DEFAULT_BOT_LIMITS.network).toBe(false);
   });
 

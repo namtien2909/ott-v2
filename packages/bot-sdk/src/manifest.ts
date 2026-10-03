@@ -22,6 +22,9 @@ export const DEFAULT_BOT_LIMITS = Object.freeze({
   maxPlies: 120,
   maxRounds: 60,
   wholeMatchClockMode: "ACTIVE_COMPUTE",
+  // CPython-WASI bootstrap is host/runtime overhead, not player-turn fuel.
+  // The per-turn budget below remains the equal budget for Bot code.
+  wasmStartupFuel: 2_000_000_000,
   wasmFuel: 300_000_000,
   wasmEpochTicks: 500,
   wasmMemoryPages: 1024,

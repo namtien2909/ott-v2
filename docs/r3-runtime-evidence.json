@@ -24,6 +24,7 @@
     "fixtureCodeExecuted": true,
     "playerCodeExecuted": false,
     "limits": {
+      "wasmStartupFuel": 2000000000,
       "wasmFuel": 300000000,
       "perTurnMs": 500,
       "outputBytes": 16384,

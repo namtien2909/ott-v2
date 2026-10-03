@@ -111,7 +111,7 @@ if (!wasmtimePath || !cpythonDir || !(await exists(wasmtimePath)) || !(await exi
   const maxCaptureBytes = Math.max(limits.outputBytes * 4, 65536);
 
   function runGuest(source, options = {}) {
-    const fuel = options.fuel ?? limits.wasmFuel;
+    const fuel = options.fuel ?? limits.wasmStartupFuel ?? limits.wasmFuel;
     const timeoutMs = options.timeoutMs ?? limits.perTurnMs;
     const hostTimeoutMs = options.hostTimeoutMs ?? Math.max(timeoutMs + 1500, 2000);
     const maxMemoryBytes = options.maxMemoryBytes ?? limits.wasmMemoryPages * 64 * 1024;
@@ -271,14 +271,14 @@ print(json.dumps({'side': SIDE, 'turns': turns, 'statePly': state['ply'], 'memor
   try { readonlyMutationValue = JSON.parse(readonlyMutations.stdout.trim()); } catch { readonlyMutationValue = null; }
   const readonlyMutationPass = readonlyProbeExists && readonlyProbeGuestPath !== null && readonlyMutations.code === 0 && readonlyMutationValue?.unlink === "PermissionError" && readonlyMutationValue?.rename === "PermissionError";
 
-  const bounded = await runGuest(boundedSource, { timeoutMs: limits.perTurnMs, hostTimeoutMs: 3000 });
+  const bounded = await runGuest(boundedSource, { fuel: limits.wasmFuel, timeoutMs: limits.perTurnMs, hostTimeoutMs: 3000 });
   const boundedPass = bounded.code !== 0 && /fuel|timed out|timeout|interrupt/i.test(`${bounded.stdout}\n${bounded.stderr}`);
 
   // Prove independent per-turn enforcement/reset, separate from the
   // SDK-shaped in-process whole-match compatibility fixture.
-  const quotaTimeoutA = await runGuest(boundedSource, { timeoutMs: limits.perTurnMs, hostTimeoutMs: 3000 });
-  const quotaTimeoutB = await runGuest(boundedSource, { timeoutMs: limits.perTurnMs, hostTimeoutMs: 3000 });
-  const quotaResetAfterTimeout = await runGuest(abiSource, { timeoutMs: limits.perTurnMs, hostTimeoutMs: 3000 });
+  const quotaTimeoutA = await runGuest(boundedSource, { fuel: limits.wasmFuel, timeoutMs: limits.perTurnMs, hostTimeoutMs: 3000 });
+  const quotaTimeoutB = await runGuest(boundedSource, { fuel: limits.wasmFuel, timeoutMs: limits.perTurnMs, hostTimeoutMs: 3000 });
+  const quotaResetAfterTimeout = await runGuest(abiSource, { fuel: limits.wasmStartupFuel ?? limits.wasmFuel, timeoutMs: limits.perTurnMs, hostTimeoutMs: 3000 });
   const perTurnQuotaPass = [quotaTimeoutA, quotaTimeoutB].every((run) => run.code !== 0 && run.elapsedMs <= 3000 && /fuel|timed out|timeout|interrupt/i.test(`${run.stdout}\n${run.stderr}`))
     && quotaResetAfterTimeout.code === 0;
 
@@ -291,7 +291,7 @@ print(json.dumps({'side': SIDE, 'turns': turns, 'statePly': state['ply'], 'memor
   const flood = await runGuest("print('x' * 20000)", { fuel: 1_000_000_000, timeoutMs: 1000, hostTimeoutMs: 3000 });
   const outputBudgetPass = flood.outputExceeded && flood.code !== 0 && flood.outputBytes > limits.outputBytes;
 
-  const cancelled = await runGuest(boundedSource, { timeoutMs: 5000, hostTimeoutMs: 1500, cancelAfterMs: 50 });
+  const cancelled = await runGuest(boundedSource, { fuel: limits.wasmFuel, timeoutMs: 5000, hostTimeoutMs: 1500, cancelAfterMs: 50 });
   const cancellationPass = cancelled.cancelled && cancelled.code !== 0;
   const reclaim = await runGuest(abiSource);
   const reclaimPass = reclaim.code === 0;
@@ -452,6 +452,7 @@ print(json.dumps({'side': SIDE, 'turns': turns, 'statePly': state['ply'], 'memor
       cpythonWasmSha256: await sha256(runtimeWasm),
       cpythonWasmBytes: runtimeStat.size,
       limits: {
+        wasmStartupFuel: limits.wasmStartupFuel ?? limits.wasmFuel,
         wasmFuel: limits.wasmFuel,
         perTurnMs: limits.perTurnMs,
         outputBytes: limits.outputBytes,
