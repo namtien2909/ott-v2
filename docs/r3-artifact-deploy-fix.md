@@ -37,3 +37,11 @@ After the hash correction, Render passed artifact validation and reached the sec
 - `corepack pnpm --filter @ottv2/server probe:r3:provider` requires PASS and exits nonzero on failure.
 - `/diagnostics/r3/provider` returns HTTP 503 for the recorded failure, with sanitized startup details, and HTTP 200 only for a proven report.
 - Local validation: four Node regression tests and 81 server tests PASS; contracts/server build PASS. These are not provider execution evidence.
+
+## 2026-10-03 provider follow-up
+
+- Commits `2e851eb`, `8562528`, `302db1e`, `206b1ff`, `dfe2e63`, `659db98`, `8b8d971`, `25faa18`, `8e78f5f` and `c58c7e5` keep the API/SPA deploy fail-closed while improving provider diagnostics.
+- The Render probe exposed a Wasmtime/CPython bootstrap fuel failure. The manifest now separates `wasmStartupFuel` (`2,000,000,000`, bootstrap only) from the equal Bot turn budget (`wasmFuel=300,000,000`); the `500ms` per-turn watchdog remains unchanged.
+- Public Render evidence later showed all security, quota, headroom, whole-match and determinism checks passing before the final report write; the remaining public report was from an older revision and is not evidence for `c58c7e5`.
+- Local evidence after the fixes: 84 server tests PASS, contracts/SDK typecheck PASS, probe syntax PASS, artifact pin tests PASS. No player source was executed.
+- R3 remains `BLOCKED` until Render deploys the latest commit and returns a schema-valid `PROVEN` report, then R4/R9/R10/R11 integration gates can be evaluated. Do not mark the Wave DONE from local fixtures or a stale public report.
