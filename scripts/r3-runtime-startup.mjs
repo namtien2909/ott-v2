@@ -9,6 +9,12 @@ export function describeRuntimeStartup(run) {
     : /EACCES|permission denied/i.test(output) ? "EXECUTION_PERMISSION_DENIED"
     : /failed to spawn|Resource temporarily unavailable|thread.*panicked/i.test(output) ? "HOST_THREAD_RESOURCE_FAILURE"
     : /No module named|Could not find platform|encodings|init_fs_encoding/.test(output) ? "PYTHON_RUNTIME_LAYOUT_FAILURE"
+    // Wasmtime on the provider can abort before the guest budget is
+    // meaningfully exercised (Linux commonly reports this as exit 134 with
+    // no signal). Keep that host-process failure separate from a genuine
+    // fuel/interrupt timeout so startup/readiness evidence cannot be
+    // misreported as guest compute budget evidence.
+    : run.code === 134 && run.signal == null ? "HOST_PROCESS_ABORTED"
     : /fuel|interrupt|timed out/i.test(output) ? "GUEST_BUDGET_EXCEEDED"
     : run.signal === "SIGKILL" ? "HOST_PROCESS_KILLED"
     : run.code === 0 ? "OK" : "UNCLASSIFIED_STARTUP_FAILURE";
