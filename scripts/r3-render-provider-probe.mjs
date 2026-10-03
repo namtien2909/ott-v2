@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
+import { inflateRawSync } from "node:zlib";
 
 const scriptPath = fileURLToPath(import.meta.url);
 const repoRoot = resolve(dirname(scriptPath), "..");
@@ -62,17 +63,72 @@ async function sha256(filePath) {
 }
 
 async function download(url, destination) {
-  const response = await fetch(url, { redirect: "error" });
+  // GitHub release assets intentionally redirect to a content-addressed
+  // release host. The URL is pinned in the checked-in manifest and the
+  // downloaded bytes are hash-verified before anything is executed.
+  const response = await fetch(url, { redirect: "follow" });
   if (!response.ok || !response.body) throw new Error(`Pinned runtime download failed (${response.status}).`);
   await pipeline(Readable.fromWeb(response.body), createWriteStream(destination, { flags: "wx" }));
 }
 
 async function extractArchive(archivePath, destination, stripComponents = false) {
   await mkdir(destination, { recursive: true });
+  if (archivePath.toLowerCase().endsWith(".zip")) {
+    await extractZipArchive(archivePath, destination);
+    return;
+  }
   const args = ["-xf", archivePath, "-C", destination];
   if (stripComponents) args.push("--strip-components=1");
   const extraction = await runCommand("tar", args);
   if (extraction.code !== 0) throw new Error("Pinned runtime extraction failed.");
+}
+
+export async function extractZipArchive(archivePath, destination) {
+  const archive = await readFile(archivePath);
+  const endSignature = Buffer.from([0x50, 0x4b, 0x05, 0x06]);
+  const endOffset = archive.lastIndexOf(endSignature);
+  if (endOffset < 0 || endOffset + 22 > archive.length) throw new Error("Pinned ZIP archive has no valid central directory.");
+  const entryCount = archive.readUInt16LE(endOffset + 10);
+  const centralSize = archive.readUInt32LE(endOffset + 12);
+  const centralOffset = archive.readUInt32LE(endOffset + 16);
+  if (centralOffset + centralSize > archive.length) throw new Error("Pinned ZIP central directory is out of bounds.");
+  let cursor = centralOffset;
+  let totalOutputBytes = 0;
+  for (let index = 0; index < entryCount; index += 1) {
+    if (cursor + 46 > archive.length || archive.readUInt32LE(cursor) !== 0x02014b50) throw new Error("Pinned ZIP central directory entry is invalid.");
+    const flags = archive.readUInt16LE(cursor + 8);
+    const compression = archive.readUInt16LE(cursor + 10);
+    const compressedSize = archive.readUInt32LE(cursor + 20);
+    const uncompressedSize = archive.readUInt32LE(cursor + 24);
+    const nameLength = archive.readUInt16LE(cursor + 28);
+    const extraLength = archive.readUInt16LE(cursor + 30);
+    const commentLength = archive.readUInt16LE(cursor + 32);
+    const localOffset = archive.readUInt32LE(cursor + 42);
+    const nameStart = cursor + 46;
+    const name = archive.subarray(nameStart, nameStart + nameLength).toString("utf8");
+    cursor = nameStart + nameLength + extraLength + commentLength;
+    if ((flags & 0x01) !== 0 || (compression !== 0 && compression !== 8)) throw new Error("Pinned ZIP uses an unsupported or encrypted entry.");
+    const safeName = name.replaceAll("\\", "/");
+    if (safeName.startsWith("/") || safeName.split("/").some((part) => part === "..")) throw new Error("Pinned ZIP contains an unsafe path.");
+    if (safeName.endsWith("/")) {
+      await mkdir(join(destination, safeName), { recursive: true });
+      continue;
+    }
+    if (localOffset + 30 > archive.length || archive.readUInt32LE(localOffset) !== 0x04034b50) throw new Error("Pinned ZIP local entry is invalid.");
+    const localNameLength = archive.readUInt16LE(localOffset + 26);
+    const localExtraLength = archive.readUInt16LE(localOffset + 28);
+    const dataStart = localOffset + 30 + localNameLength + localExtraLength;
+    const dataEnd = dataStart + compressedSize;
+    if (dataEnd > archive.length) throw new Error("Pinned ZIP entry is out of bounds.");
+    const compressed = archive.subarray(dataStart, dataEnd);
+    const output = compression === 0 ? compressed : inflateRawSync(compressed);
+    if (output.length !== uncompressedSize) throw new Error("Pinned ZIP entry size mismatch.");
+    totalOutputBytes += output.length;
+    if (totalOutputBytes > 1_000_000_000) throw new Error("Pinned ZIP expands beyond the probe safety limit.");
+    const target = join(destination, safeName);
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, output, { flag: "wx" });
+  }
 }
 
 async function findFile(root, name) {
