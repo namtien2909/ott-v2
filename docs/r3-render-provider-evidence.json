@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "status": "PROVEN",
+  "runtimeGate": "PROVEN_FOR_RENDER_FREE_PINNED_WASMTIME_CPYTHON_WASI_FIXTURES",
+  "measuredAt": "2026-10-03T05:27:49.185Z",
+  "playerCodeExecuted": false,
+  "fixtureCodeExecuted": true,
+  "provider": {
+    "platform": "linux",
+    "arch": "x64",
+    "cpuCount": 48,
+    "totalMemoryBytes": 99605319680,
+    "freeMemoryBytes": 89010880512
+  },
+  "artifacts": {
+    "wasmtimeVersion": "49.0.2",
+    "wasmtimeBinarySha256": "d0a014e0d5b0cf48dd3549c38e2e6ecd78ff09fb3e3f10d751b87b72bdfd8635",
+    "cpythonVersion": "3.14.7",
+    "cpythonWasmSha256": "d24bd98d3071af6b17d51d53a08700b9acef59172a0afcb6adb733645c2a1715"
+  },
+  "checks": {
+    "abi": { "pass": true, "elapsedMs": 358, "outputBytes": 53 },
+    "environmentIsolation": { "pass": true },
+    "filesystemBoundary": { "pass": true },
+    "networkIsolation": { "pass": true },
+    "pathTraversal": { "pass": true },
+    "infiniteLoopBudget": { "pass": true },
+    "perTurnQuota": { "pass": true },
+    "sleepBudget": { "pass": true },
+    "memoryBoundary": { "pass": true },
+    "outputBudget": { "pass": true, "outputBytes": 20001, "terminated": true },
+    "cancellation": { "pass": true, "elapsedMs": 55 },
+    "killReclaim": { "pass": true },
+    "determinism": { "pass": true, "sameSeedSameState": true, "differentSeedChangesResult": true },
+    "headroom": { "pass": true, "count": 12, "p95Ms": 401, "maxMs": 401 },
+    "wholeMatchBudget": { "pass": true, "blueRounds": 60, "redRounds": 60, "elapsedMs": 774, "limitMs": 30000 },
+    "admission": { "pass": true, "capacity": 1, "firstGranted": true, "secondRejected": true, "activeAfterRelease": 0 },
+    "apiHeadroom": { "pass": true, "requests": 12, "p95Ms": 389, "maxMs": 389, "concurrentStatuses": [200, 429] }
+  },
+  "scheduler": {
+    "pass": true,
+    "requested": 4,
+    "completed": 4,
+    "maxConcurrent": 1,
+    "results": [
+      { "id": 0, "code": 0, "elapsedMs": 356, "validOutput": true },
+      { "id": 1, "code": 0, "elapsedMs": 379, "validOutput": true },
+      { "id": 2, "code": 0, "elapsedMs": 383, "validOutput": true },
+      { "id": 3, "code": 0, "elapsedMs": 350, "validOutput": true }
+    ]
+  },
+  "security": { "network": false, "filesystem": false, "secrets": false, "applicationMounts": false },
+  "scope": "Fixed compatibility fixtures only; no player source, upload, application commit or private payload was executed.",
+  "sourceEndpoint": "https://ott-v2.onrender.com/diagnostics/r3/provider"
+}

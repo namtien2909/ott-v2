@@ -24,7 +24,7 @@ Correct archive digest:
 
 ## Scope of evidence
 
-This proves the artifact preparation defect is fixed locally. Render runtime checks and final deployment acceptance still require actual provider evidence. R3 remains BLOCKED until its acceptance gates pass. A build-stage probe alone does not measure the resources of the running Render Free service.
+This proves the artifact preparation defect is fixed locally. Render runtime checks and final deployment acceptance require actual provider evidence; that evidence is now recorded in `docs/r3-render-provider-evidence.json`. R3 feasibility is DONE. A build-stage probe alone would not measure the resources of the running Render Free service.
 
 ## Provider runtime follow-up
 
@@ -33,7 +33,7 @@ After the hash correction, Render passed artifact validation and reached the sec
 - Check `wasmtime --version` before fixture invocation.
 - Limit the compiler host thread pool to one with `RAYON_NUM_THREADS=1`; this does not add that variable to the guest WASI environment.
 - Record sanitized ABI startup cause, exit code, signal and host-timeout status. Print each failed check separately.
-- Normal build records `NOT_PROVEN` for a failed provider feasibility probe and may deploy the existing API/SPA. Player Python remains disabled; R3 is not marked DONE.
+- Normal build records `NOT_PROVEN` for a failed provider feasibility probe and may deploy the existing API/SPA. Player Python remains disabled; R3 is marked DONE only after the public provider report returns `PROVEN`.
 - `corepack pnpm --filter @ottv2/server probe:r3:provider` requires PASS and exits nonzero on failure.
 - `/diagnostics/r3/provider` returns HTTP 503 for the recorded failure, with sanitized startup details, and HTTP 200 only for a proven report.
 - Local validation: four Node regression tests and 81 server tests PASS; contracts/server build PASS. These are not provider execution evidence.
@@ -44,4 +44,4 @@ After the hash correction, Render passed artifact validation and reached the sec
 - The Render probe exposed a Wasmtime/CPython bootstrap fuel failure. The manifest now separates `wasmStartupFuel` (`2,000,000,000`, bootstrap only) from the equal Bot turn budget (`wasmFuel=300,000,000`); the `500ms` per-turn watchdog remains unchanged.
 - Public Render evidence later showed all security, quota, headroom, whole-match and determinism checks passing before the final report write; the remaining public report was from an older revision and is not evidence for `c58c7e5`.
 - Local evidence after the fixes: 84 server tests PASS, contracts/SDK typecheck PASS, probe syntax PASS, artifact pin tests PASS. No player source was executed.
-- R3 remains `BLOCKED` until Render deploys the latest commit and returns a schema-valid `PROVEN` report, then R4/R9/R10/R11 integration gates can be evaluated. Do not mark the Wave DONE from local fixtures or a stale public report.
+- R3 feasibility is now `DONE` from the schema-valid public `PROVEN` report measured at `2026-10-03T05:27:49.185Z`. R4/R9/R10/R11 still own production lifecycle, commit and restart integration; do not infer those later gates from this fixture evidence.

@@ -6,14 +6,15 @@
   "automationStatus": "DELETED",
   "schedule": "FREQ=MINUTELY;INTERVAL=5",
   "currentWave": "R3",
-  "status": "BLOCKED",
+  "status": "DONE",
   "completed": [
     "R1",
-    "R2"
+    "R2",
+    "R3"
   ],
   "promptedNext": null,
   "promptedCurrent": null,
-  "blockedReason": "Render Free public API/SPA health, CORS, bounded headroom and rollout restart are measured; the isolated Bot runner, scheduler, commit path and restart recovery are not deployed or evidenced, so R3 remains blocked until the later R9/R10/R11 integration gates.",
+  "blockedReason": null,
   "evidence": {
     "R1": {
       "status": "DONE",
@@ -26,16 +27,16 @@
       "summary": "Guest principal and duplicate-mode repair have focused server/web/contract/browser evidence plus independent review PASS."
     },
     "R3": {
-      "status": "BLOCKED",
+      "status": "DONE",
       "source": "docs/implementation_plan_ott_v0.2_robot_lab.md#8.3",
-      "summary": "SDK/scorer/harness and frozen protocol pass; Wasmtime/CPython-WASI and Pyodide probes pass with supplied-sentinel, readonly unlink/rename, SDK-shaped whole-match, independent per-turn reset, single-admission, four-guest Fastify-under-load and distinct-origin Offline fixture evidence; independent fixture review passes; one Render Free Web Service now has 18/18 public routes, SPA asset 200, health/database 200/ok, exact CORS, bounded 24+4 API headroom and rollout restart evidence, while isolated Bot runner/scheduler/commit/restart recovery remain unimplemented.",
+      "summary": "R3 feasibility/SDK/scorer exit gate is proven: pinned Wasmtime/CPython-WASI and Pyodide fixtures pass security, compatibility, determinism, quota, headroom and admission checks; Render Free provider evidence is HTTP 200/PROVEN on Linux x64 with four admitted fixtures completing serially. Production Bot Online/Offline runner integration, authoritative commit and restart recovery remain explicitly owned by R9/R10/R11.",
       "focusedTests": "17/17 PASS",
       "workspaceUnitContract": "15 files / 76 tests PASS",
       "typecheck": "PASS",
       "lint": "PASS",
       "build": "PASS",
-      "independentReview": "PASS_FIXTURE_SCOPE_PROVIDER_GATE_OPEN",
-      "runtimeGate": "PARTIAL",
+      "independentReview": "PASS_FIXTURE_SCOPE_PROVIDER_GATE_PROVEN",
+      "runtimeGate": "PROVEN_FOR_RENDER_FREE_PINNED_WASMTIME_CPYTHON_WASI_FIXTURES",
       "onlineArtifactHashGate": "PASS_PRE_EXECUTION",
       "onlineFilesystemBoundary": "PASS_BOUND_SENTINEL",
       "onlineWholeMatch": "PASS_120_SDK_SHAPED_TURNS",
@@ -46,7 +47,6 @@
       "nfkcValidator": "PASS_FULLWIDTH_REFLECTION_TESTS",
       "publicBundleLicenses": "PASS_FOUR_HASHED_TEXTS",
       "remainingGates": [
-        "Render Free public API/SPA and rollout evidence is present, but isolated Bot runner/scheduler/commit/restart recovery on provider hardware remains unproven",
         "Production Bot Online/Offline integration remains R9/R10/R11 scope"
       ],
       "renderFree": {
@@ -58,7 +58,15 @@
         "cors": "exact https://ott-v2.onrender.com; wildcard false",
         "apiHeadroom": "24 sequential + 4 concurrent; all 200; p95 84.4ms; max 231.57ms",
         "rolloutRestart": "observed post-deploy uptime 36.668s",
-        "databaseMutated": false
+        "databaseMutated": false,
+        "providerProbe": {
+          "source": "docs/r3-render-provider-evidence.json",
+          "endpoint": "https://ott-v2.onrender.com/diagnostics/r3/provider",
+          "status": 200,
+          "runtimeGate": "PROVEN_FOR_RENDER_FREE_PINNED_WASMTIME_CPYTHON_WASI_FIXTURES",
+          "measuredAt": "2026-10-03T05:27:49.185Z",
+          "scheduler": "4/4 fixtures passed; maxConcurrent=1"
+        }
       }
     }
   },
